@@ -1,89 +1,117 @@
 # Immich Integration for PhotoFrame
 
-## Implementation Status
+This integration enables PhotoFrame to display photos from your personal Immich photo server, providing a self-hosted alternative to cloud-based photo services.
 
-### Phase 1: Configuration System ✅ COMPLETE
-The Immich configuration system has been successfully implemented and is working correctly.
+## What is Immich?
 
-#### What's Working
-- **Web UI Configuration**: Users can upload Immich JSON configuration files through the PhotoFrame web interface
-- **Service Management**: Immich services are properly managed with distinctive configuration handling
-- **Backend Integration**: Complete backend infrastructure for Immich-specific configuration
-- **Frontend Routing**: Dynamic endpoint routing (Immich services use `/immichconfig`, regular services use `/config`)
+[Immich](https://immich.app/) is a self-hosted photo and video backup solution, similar to Google Photos but running on your own server. This integration allows PhotoFrame to connect to your Immich server and display your photos.
 
-#### Configuration Format
-Immich services expect JSON configuration files with:
+## Features
+
+- **Direct Server Connection**: Connect PhotoFrame directly to your Immich server using API authentication
+- **Album-Based Display**: Select specific albums to display as keywords
+- **Self-Hosted Privacy**: Keep your photos on your own server - no cloud services required
+- **Web-Based Configuration**: Easy setup through PhotoFrame's web interface
+
+## Setup Instructions
+
+### Step 1: Get Your Immich API Key
+
+1. Log into your Immich web interface
+2. Go to **Account Settings** → **API Keys**
+3. Click **New API Key**
+4. Give it a name (e.g., "PhotoFrame")
+5. Copy the generated API key
+
+### Step 2: Configure PhotoFrame
+
+1. Open PhotoFrame's web interface (usually `http://your-pi-ip:7777`)
+2. Log in with your credentials (default: `photoframe` / `password`)
+3. Click **Services** in the navigation
+4. Click **Add Service** and select **Immich**
+5. Upload a JSON configuration file or create one with this format:
+
 ```json
 {
   "server_url": "https://your-immich-server.com",
-  "api_key": "your-immich-api-key"
+  "api_key": "your-immich-api-key-here"
 }
 ```
 
-#### Technical Implementation
-- **Backend**: `modules/servicemanager.py` - Added `setImmichServiceConfiguration()` and `validateImmichServiceConfiguration()`
-- **Service**: `services/svc_immich.py` - Uses `needImmichConfig=True` flag for distinctive configuration
-- **Route**: `routes/immichconfigupload.py` - Handles `/service/{id}/immichconfig` endpoint
-- **Frontend**: Dynamic `immichConfigType` field routes to appropriate endpoints
+**Important Configuration Notes:**
+- `server_url`: The full URL to your Immich server (include `https://` or `http://`)
+- `api_key`: The API key you generated in Step 1
+- **No trailing slashes** in the server URL
+- Ensure your PhotoFrame can reach your Immich server (network connectivity)
 
-### Phase 2: Photo Retrieval ⏳ TODO
-The next phase involves implementing actual photo fetching from Immich servers.
+### Step 3: Add Keywords (Albums)
 
-#### Requirements for Phase 2
-- **Immich API Integration**: Connect to Immich servers using configured credentials
-- **Album Enumeration**: Fetch available albums from Immich
-- **Photo Fetching**: Download photos from specified albums
-- **Image Processing**: Integrate with PhotoFrame's existing image display pipeline
-- **Caching**: Implement proper photo caching mechanisms
-- **Error Handling**: Handle network issues, API changes, authentication errors
+1. After configuration, the service will move to **NEED_KEYWORDS** state
+2. Click **Keywords** next to your Immich service
+3. Add album names as keywords (case-sensitive)
+4. The service will fetch photos from these albums
 
-#### Current Phase 1 Limitations
-- **No Photo Fetching**: Service is configured but returns placeholder messages
-- **No Album Support**: Album keyword functionality not yet implemented
-- **No Image Display**: Photos are not retrieved or displayed from Immich servers
+### Common Configuration Examples
 
-## Architecture Notes
+**Local server with port:**
+```json
+{
+  "server_url": "http://192.168.1.100:2283",
+  "api_key": "your-api-key"
+}
+```
 
-### Service Integration Pattern
-The Immich service follows PhotoFrame's established patterns:
-- Inherits from `BaseService`
-- Uses service states: `CONFIG` → `NEED_KEYWORDS` → `READY`
-- Integrates with existing slideshow and caching systems
+**HTTPS with custom domain:**
+```json
+{
+  "server_url": "https://photos.yourdomain.com",
+  "api_key": "your-api-key"
+}
+```
 
-### Configuration vs OAuth Pattern
-Unlike Google Photos (which uses OAuth), Immich uses direct API key authentication:
-- `needImmichConfig=True` instead of `needOAuth=True`
-- Direct server URL + API key configuration
-- No OAuth flow or token refresh requirements
+## Troubleshooting
 
-### Future Considerations
-- **Multiple Server Support**: May need to support multiple Immich instances
-- **Album Refresh**: Periodic album list updates
-- **Bandwidth Management**: Photo download scheduling and limits
-- **Quality Selection**: Different image quality options for different displays
+### Service Shows "CONFIG" State
+- Verify your JSON file has the correct format
+- Check that `server_url` and `api_key` are properly quoted strings
+- Ensure there are no extra commas or syntax errors
 
-## Files Modified/Created
-- `modules/servicemanager.py` - Backend service management
-- `services/svc_immich.py` - Immich service implementation  
-- `routes/immichconfigupload.py` - Configuration upload route
-- `static/template/main.html` - Frontend template updates
-- `frame.py` - Route registration
+### Service Shows "Error" State
+- Verify PhotoFrame can reach your Immich server (try the URL in a browser)
+- Check that your API key is still valid in Immich settings
+- Ensure the server URL is correct (no trailing slashes)
+- Check PhotoFrame's debug logs for detailed error messages
 
-## Development Workflow Used
-1. **Architect Analysis**: Comprehensive architectural planning
-2. **User Approval**: All changes approved before implementation
-3. **Incremental Development**: Systematic implementation with change tracking
-4. **QA Testing**: Rigorous testing of functionality and error cases
-5. **User Validation**: End-to-end testing confirmed working
+### No Photos Displayed
+- Verify the album names you added as keywords exist in Immich
+- Check that the albums contain photos
+- Ensure your API key has permission to access those albums
+- Album names are case-sensitive
 
-## Next Steps for Phase 2
-1. **Research Immich API**: Document available endpoints and authentication methods
-2. **Design Photo Pipeline**: Plan integration with existing PhotoFrame image handling
-3. **Implement Album Support**: Enable keyword-based album selection
-4. **Add Photo Fetching**: Implement actual photo retrieval from Immich servers
-5. **Testing**: Comprehensive testing with real Immich installations
+### Network Issues
+- If using HTTPS, ensure SSL certificates are valid
+- Check firewall settings on both PhotoFrame and Immich server
+- Verify DNS resolution if using domain names
 
-## Notes
-- Error handling uses existing PhotoFrame patterns (some edge cases return HTTP 500)
-- Backward compatibility maintained - existing services unaffected
-- All changes follow established PhotoFrame architectural patterns
+## Current Limitations
+
+- **Album names must match exactly** (case-sensitive)
+- **No automatic album discovery** - you must specify album names as keywords
+- **No video support** - only displays images from albums
+
+## Security Notes
+
+- Store your API key securely - treat it like a password
+- Use HTTPS for your Immich server when possible
+- Consider creating a dedicated API key specifically for PhotoFrame
+- Regularly rotate API keys for security
+
+## Technical Details
+
+The Immich integration:
+- Uses Immich's REST API for authentication and photo retrieval
+- Follows PhotoFrame's standard service pattern (`CONFIG` → `NEED_KEYWORDS` → `READY`)
+- Integrates with PhotoFrame's existing caching and display pipeline
+- Supports multiple Immich servers (add multiple services)
+
+For developers: The implementation is in `services/svc_immich.py` and uses the `needImmichConfig=True` flag to enable special configuration handling through the `/service/{id}/immichconfig` endpoint.
