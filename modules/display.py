@@ -63,7 +63,7 @@ class display:
     result = display.validate(tvservice_params, special)
     if result is None:
       logging.error('Unable to find a valid display mode, will default to 1280x720')
-      # TODO: THis is less than ideal, maybe we should fetch resolution from fbset instead?
+      # TODO: This is less than ideal, maybe we should fetch resolution from fbset instead?
       #       but then we should also avoid touching the display since it will cause issues.
       self.enabled = False
       self.params = None
