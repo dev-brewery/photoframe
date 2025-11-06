@@ -68,6 +68,33 @@ class display:
         logging.debug('tvservice not found in any known location')
         return None
 
+    @staticmethod
+    def _get_fbset_resolution():
+        """Get current framebuffer resolution from fbset as fallback when tvservice is unavailable"""
+        try:
+            output = subprocess.check_output(['fbset'], stderr=subprocess.DEVNULL).decode('utf-8')
+            # Parse fbset output for geometry line
+            # Example: geometry 1920 1080 1920 1080 32
+            for line in output.split('\n'):
+                line = line.strip()
+                if line.startswith('geometry'):
+                    parts = line.split()
+                    if len(parts) >= 6:
+                        width = int(parts[1])
+                        height = int(parts[2])
+                        depth = int(parts[5])
+                        logging.info(f'Detected framebuffer resolution from fbset: {width}x{height} @ {depth}bit')
+                        return {
+                            'width': width,
+                            'height': height,
+                            'depth': depth,
+                            'reverse': False,
+                            'tvservice': f'FRAMEBUFFER {width} {height}'
+                        }
+        except Exception as e:
+            logging.debug(f'Failed to get resolution from fbset: {e}')
+        return None
+
     def setConfiguration(self, tvservice_params, special=None):
         self.enabled = True
 
@@ -87,13 +114,20 @@ class display:
 
         result = display.validate(tvservice_params, special)
         if result is None:
-            logging.error('Unable to find a valid display mode, will default to 1280x720')
-            # TODO: This is less than ideal, maybe we should fetch resolution from fbset instead?
-            #       but then we should also avoid touching the display since it will cause issues.
-            self.enabled = False
-            self.params = None
-            self.special = None
-            return (1280, 720, '')
+            # tvservice validation failed, try to get current framebuffer settings as fallback
+            logging.warning('tvservice validation failed, attempting to read current framebuffer settings from fbset')
+            result = display._get_fbset_resolution()
+
+            if result is None:
+                # Both tvservice and fbset failed, disable display and use safe defaults
+                logging.error('Unable to detect display mode via tvservice or fbset, disabling display (defaulting to 1280x720)')
+                self.enabled = False
+                self.params = None
+                self.special = None
+                return (1280, 720, '')
+            else:
+                # Successfully got resolution from fbset, continue with display enabled
+                logging.info(f'Using framebuffer resolution: {result["width"]}x{result["height"]} @ {result["depth"]}bit')
 
         self.width = result['width']
         self.height = result['height']
