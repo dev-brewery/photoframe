@@ -46,6 +46,28 @@ class display:
     def setConfigPage(self, url):
         self.url = url
 
+    @staticmethod
+    def _get_tvservice_path():
+        """Find tvservice binary location for backward compatibility with older Pi models"""
+        paths = [
+            '/opt/vc/bin/tvservice',  # Legacy location (Pi Zero, 1, 2, 3)
+            '/usr/bin/tvservice',      # Potential alternate location
+        ]
+        for path in paths:
+            if os.path.exists(path):
+                return path
+
+        # Check if tvservice is in PATH
+        try:
+            result = subprocess.run(['which', 'tvservice'], capture_output=True, timeout=1)
+            if result.returncode == 0:
+                return result.stdout.decode('utf-8').strip()
+        except:
+            pass
+
+        logging.debug('tvservice not found in any known location')
+        return None
+
     def setConfiguration(self, tvservice_params, special=None):
         self.enabled = True
 
@@ -66,7 +88,7 @@ class display:
         result = display.validate(tvservice_params, special)
         if result is None:
             logging.error('Unable to find a valid display mode, will default to 1280x720')
-            # TODO: THis is less than ideal, maybe we should fetch resolution from fbset instead?
+            # TODO: This is less than ideal, maybe we should fetch resolution from fbset instead?
             #       but then we should also avoid touching the display since it will cause issues.
             self.enabled = False
             self.params = None
@@ -250,11 +272,17 @@ class display:
         if self.params is None:
             return
 
+        tvservice = display._get_tvservice_path()
+
         if enable:
-            if self.special:
-                debug.subprocess_call(['tvservice', '-p', self.special], stderr=self.void)
+            if tvservice:
+                if self.special:
+                    debug.subprocess_call([tvservice, '-p', self.special], stderr=self.void)
+                else:
+                    debug.subprocess_call([tvservice, '-p', self.params], stderr=self.void)
             else:
-                debug.subprocess_call(['tvservice', '-p', self.params], stderr=self.void)
+                logging.warning('tvservice not found, cannot power on HDMI display')
+
             time.sleep(1)
             debug.subprocess_call(['fbset', '-depth', str(self.depth)], stderr=self.void)
             debug.subprocess_call(['fbset', '-g', str(self.width), str(self.height), str(self.width), str(self.height), str(self.depth)], stderr=self.void)
@@ -262,7 +290,10 @@ class display:
             debug.subprocess_call(['fbset', '-move', 'up'], stderr=self.void)
             debug.subprocess_call(['fbset', '-move', 'down'], stderr=self.void)
         else:
-            debug.subprocess_call(['tvservice', '-o'], stderr=self.void)
+            if tvservice:
+                debug.subprocess_call([tvservice, '-o'], stderr=self.void)
+            else:
+                logging.warning('tvservice not found, cannot power off HDMI display')
 
         self.enabled = enable
 
@@ -316,30 +347,42 @@ class display:
     @staticmethod
     def available():
         result = []
-        try:
-            output = subprocess.check_output(['tvservice', '-m', 'CEA'], stderr=subprocess.DEVNULL).decode('utf-8')
-            for line in output.split('\n'):
-                if line.startswith('mode '):
-                    result.append(line[5:])
-        except:
-            pass
+        tvservice = display._get_tvservice_path()
+
+        if not tvservice:
+            logging.warning('tvservice not found, no HDMI resolutions available')
+            return result
 
         try:
-            output = subprocess.check_output(['tvservice', '-m', 'DMT'], stderr=subprocess.DEVNULL).decode('utf-8')
+            output = subprocess.check_output([tvservice, '-m', 'CEA'], stderr=subprocess.DEVNULL).decode('utf-8')
             for line in output.split('\n'):
                 if line.startswith('mode '):
                     result.append(line[5:])
-        except:
-            pass
+        except Exception as e:
+            logging.debug(f'Failed to get CEA modes from tvservice: {e}')
+
+        try:
+            output = subprocess.check_output([tvservice, '-m', 'DMT'], stderr=subprocess.DEVNULL).decode('utf-8')
+            for line in output.split('\n'):
+                if line.startswith('mode '):
+                    result.append(line[5:])
+        except Exception as e:
+            logging.debug(f'Failed to get DMT modes from tvservice: {e}')
 
         return result
 
     @staticmethod
     def validate(tvservice, special):
         # Takes a string and returns valid width, height, depth and service
+        tvservice_path = display._get_tvservice_path()
+
+        if not tvservice_path:
+            logging.warning('tvservice not found, cannot validate display configuration')
+            return None
+
         if special:
             try:
-                output = subprocess.check_output(['tvservice', '-s'], stderr=subprocess.DEVNULL).decode('utf-8')
+                output = subprocess.check_output([tvservice_path, '-s'], stderr=subprocess.DEVNULL).decode('utf-8')
                 if output.find(special) != -1:
                     return {
                         'width': 1280,
@@ -348,21 +391,23 @@ class display:
                         'reverse': False,
                         'tvservice': special
                     }
-            except:
-                pass
+            except Exception as e:
+                logging.debug(f'Failed to validate special display mode: {e}')
 
         if not tvservice:
             return None
 
         try:
-            output = subprocess.check_output(['tvservice', '-s'], stderr=subprocess.DEVNULL).decode('utf-8')
+            output = subprocess.check_output([tvservice_path, '-s'], stderr=subprocess.DEVNULL).decode('utf-8')
             if output.find(tvservice) == -1:
+                logging.debug(f'Current display mode does not match requested mode: {tvservice}')
                 return None
-        except:
+        except Exception as e:
+            logging.debug(f'Failed to get current display status: {e}')
             return None
 
         try:
-            output = subprocess.check_output(['tvservice', '-v', tvservice], stderr=subprocess.DEVNULL).decode('utf-8')
+            output = subprocess.check_output([tvservice_path, '-v', tvservice], stderr=subprocess.DEVNULL).decode('utf-8')
             m = re.search(r'(\d+)x(\d+)', output)
             if m:
                 width = int(m.group(1))
@@ -376,7 +421,7 @@ class display:
                     'reverse': reverse,
                     'tvservice': tvservice
                 }
-        except:
-            pass
+        except Exception as e:
+            logging.debug(f'Failed to validate tvservice mode {tvservice}: {e}')
 
         return None
