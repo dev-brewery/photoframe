@@ -306,28 +306,28 @@ class display:
         if self.params is None:
             return
 
-        tvservice = display._get_tvservice_path()
-
         if enable:
-            if tvservice:
-                if self.special:
-                    debug.subprocess_call([tvservice, '-p', self.special], stderr=self.void)
+            if self.isHDMI():
+                tvservice = display._get_tvservice_path()
+                if force:  # Make sure display is ON and set to our preference
+                    if tvservice:
+                        if self.special:
+                            debug.subprocess_call([tvservice, '-e', self.special], stderr=self.void, stdout=self.void)
+                        else:
+                            debug.subprocess_call([tvservice, '-e', self.params], stderr=self.void, stdout=self.void)
+                    else:
+                        logging.warning('tvservice not found for force display configuration')
+                    time.sleep(1)
+                    debug.subprocess_call(['fbset', '-fb', self.getDevice(), '-depth', '8'], stderr=self.void)
+                    debug.subprocess_call(['fbset', '-fb', self.getDevice(), '-depth', str(self.depth), '-xres', str(self.width), '-yres', str(self.height), '-vxres', str(self.width), '-vyres', str(self.height)], stderr=self.void)
                 else:
-                    debug.subprocess_call([tvservice, '-p', self.params], stderr=self.void)
-            else:
-                logging.warning('tvservice not found, cannot power on HDMI display')
-
-            time.sleep(1)
-            debug.subprocess_call(['fbset', '-depth', str(self.depth)], stderr=self.void)
-            debug.subprocess_call(['fbset', '-g', str(self.width), str(self.height), str(self.width), str(self.height), str(self.depth)], stderr=self.void)
-            debug.subprocess_call(['fbset', '-accel', 'true'], stderr=self.void)
-            debug.subprocess_call(['fbset', '-move', 'up'], stderr=self.void)
-            debug.subprocess_call(['fbset', '-move', 'down'], stderr=self.void)
+                    # Soft power on using vcgencmd
+                    debug.subprocess_call(['vcgencmd', 'display_power', '1'], stderr=self.void)
         else:
-            if tvservice:
-                debug.subprocess_call([tvservice, '-o'], stderr=self.void)
-            else:
-                logging.warning('tvservice not found, cannot power off HDMI display')
+            self.clear()
+            if self.isHDMI():
+                # Soft power off using vcgencmd
+                debug.subprocess_call(['vcgencmd', 'display_power', '0'], stderr=self.void)
 
         self.enabled = enable
 
@@ -456,30 +456,48 @@ class display:
 
     @staticmethod
     def available():
-        result = []
+        """Get available display modes from tvservice and internal displays"""
         tvservice = display._get_tvservice_path()
+        cea = []
+        dmt = []
 
-        if not tvservice:
+        if tvservice:
+            try:
+                output = subprocess.check_output([tvservice, '-j', '-m', 'CEA'], stderr=subprocess.DEVNULL).decode('utf-8')
+                cea = json.loads(output)
+            except Exception as e:
+                logging.debug(f'Failed to get CEA modes from tvservice: {e}')
+                cea = []
+
+            try:
+                output = subprocess.check_output([tvservice, '-j', '-m', 'DMT'], stderr=subprocess.DEVNULL).decode('utf-8')
+                dmt = json.loads(output)
+            except Exception as e:
+                logging.debug(f'Failed to get DMT modes from tvservice: {e}')
+                dmt = []
+        else:
             logging.warning('tvservice not found, no HDMI resolutions available')
-            return result
 
-        try:
-            output = subprocess.check_output([tvservice, '-m', 'CEA'], stderr=subprocess.DEVNULL).decode('utf-8')
-            for line in output.split('\n'):
-                if line.startswith('mode '):
-                    result.append(line[5:])
-        except Exception as e:
-            logging.debug(f'Failed to get CEA modes from tvservice: {e}')
+        result = []
+        for entry in cea:
+            entry['mode'] = 'CEA'
+            entry['depth'] = 32
+            entry['reverse'] = True
+            result.append(entry)
+        for entry in dmt:
+            entry['mode'] = 'DMT'
+            entry['depth'] = 32
+            entry['reverse'] = True
+            result.append(entry)
 
-        try:
-            output = subprocess.check_output([tvservice, '-m', 'DMT'], stderr=subprocess.DEVNULL).decode('utf-8')
-            for line in output.split('\n'):
-                if line.startswith('mode '):
-                    result.append(line[5:])
-        except Exception as e:
-            logging.debug(f'Failed to get DMT modes from tvservice: {e}')
+        # Check for internal display
+        internal = display._internaldisplay()
+        if internal:
+            logging.info('Internal display detected in available()')
+            result.append(internal)
 
-        return result
+        # Sort by pixel count (lowest to highest)
+        return sorted(result, key=lambda k: k['width'] * k['height'])
 
     @staticmethod
     def validate(tvservice, special):
