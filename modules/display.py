@@ -359,23 +359,99 @@ class display:
 
     @staticmethod
     def _internaldisplay():
-        try:
-            with open('/proc/device-tree/soc/video@7e900000/status', 'r') as f:
-                return f.read().strip() == 'okay'
-        except:
-            return False
+        """Detect internal display (DPI/SPI) and get its configuration"""
+        entry = {
+            'mode': 'INTERNAL',
+            'code': None,
+            'width': 0,
+            'height': 0,
+            'rate': 60,
+            'aspect_ratio': '',
+            'scan': '(internal)',
+            '3d_modes': [],
+            'reverse': False
+        }
+        device = '/dev/fb1'
+        if not os.path.exists(device):
+            if display._isDPI():
+                device = '/dev/fb0'
+            else:
+                device = None
+
+        if device:
+            try:
+                info = subprocess.check_output(['fbset', '-fb', device], stderr=subprocess.STDOUT).decode('utf-8').split('\n')
+                for line in info:
+                    line = line.strip()
+                    if line.startswith('geometry'):
+                        parts = line.split(' ')
+                        entry['width'] = int(parts[1])
+                        entry['height'] = int(parts[2])
+                        entry['depth'] = int(parts[5])
+                        entry['code'] = int(device[-1])
+                    # rgba 8/16,8/8,8/0,8/24 <== Detect rgba order
+                    if line.startswith('rgba'):
+                        m = re.search(r'rgba [0-9]*/([0-9]*),[0-9]*/([0-9]*),[0-9]*/([0-9]*),[0-9]*/([0-9]*)', line)
+                        if m is None:
+                            logging.error('fbset output has changed, cannot parse')
+                            return None
+                        entry['reverse'] = m.group(1) != '0'
+                if entry['code'] is not None:
+                    logging.debug(f'Internal display: {repr(entry)}')
+                    return entry
+            except Exception as e:
+                logging.debug(f'Failed to detect internal display: {e}')
+
+        return None
 
     def current(self):
-        if self.params is None:
-            return None
+        """Get current display mode by querying tvservice or reading stored params"""
+        result = None
+        tvservice_path = display._get_tvservice_path()
 
-        result = {}
-        result['width'] = self.pwidth
-        result['height'] = self.pheight
-        result['depth'] = self.depth
-        result['tvservice'] = self.params
-        result['special'] = self.special
-        result['rotated'] = self.rotated
+        # Try to actively detect current display mode from tvservice
+        if self.isHDMI() and tvservice_path:
+            try:
+                output = subprocess.check_output([tvservice_path, '-s'], stderr=subprocess.STDOUT).decode('utf-8')
+                # Parse: state 0x120006 [DVI DMT (82) RGB full 16:9], 1920x1080 @ 60.00Hz, progressive
+                m = re.search(r'state 0x[0-9a-f]* \[([A-Z]*) ([A-Z]*) \(([0-9]*)\) [^,]*, ([0-9]*)x([0-9]*) \@ ([0-9]*)\.[0-9]*Hz, (.)', output)
+                if m is not None:
+                    result = {
+                        'mode': m.group(2),
+                        'code': int(m.group(3)),
+                        'width': int(m.group(4)),
+                        'height': int(m.group(5)),
+                        'rate': int(m.group(6)),
+                        'aspect_ratio': '',
+                        'scan': m.group(7),
+                        '3d_modes': [],
+                        'depth': 32,
+                        'reverse': True,
+                    }
+                    logging.info(f'Detected display via tvservice: {result["mode"]} {result["code"]} {result["width"]}x{result["height"]}')
+                    return result
+            except Exception as e:
+                logging.debug(f'Failed to get current display from tvservice: {e}')
+
+        # Fallback to checking for internal display
+        if result is None:
+            result = display._internaldisplay()
+            if result:
+                logging.info('Detected internal display')
+                return result
+
+        # Last resort: return stored params if available
+        if result is None and self.params is not None:
+            logging.debug('Using stored display parameters')
+            result = {
+                'width': self.pwidth if hasattr(self, 'pwidth') else 1280,
+                'height': self.pheight if hasattr(self, 'pheight') else 720,
+                'depth': self.depth if hasattr(self, 'depth') else 32,
+                'tvservice': self.params,
+                'special': self.special if hasattr(self, 'special') else None,
+                'rotated': self.rotated
+            }
+
         return result
 
     @staticmethod
