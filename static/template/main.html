@@ -196,7 +196,9 @@
 		{{#ifvalue state value="CONFIG" }}
 			<input style="position:absolute; top: -100px" type="file" data-url="service/{{id}}/{{immichConfigType}}" data-service="{{id}}" class="config-json" name="filename" accept=".json">
 			<input type="button" data-service="{{id}}" class="service-config" value="Upload Config">
-			Upload your configuration file with the required settings for this service.
+			<input type="button" data-service="{{id}}" data-configtype="{{immichConfigType}}" class="service-config-form" value="Enter Credentials">
+			<br>Upload your configuration file with the required settings for this service.
+			<br><i><a href="#" data-service="{{id}}" class="service-config-template">Download config template</a></i>
 		{{/ifvalue}}
 		{{#ifany state "READY" "NEED_KEYWORDS" "NO_IMAGES"}}
 		{{#if keywords.keywords}}
@@ -257,6 +259,24 @@
 		it will use fill, since very little of the image will be cropped.
 		<hr>
 		<button name="help_close">Dismiss</button>
+	</div>
+</div>
+<div class="details" style="display: none" id="config_credentials">
+	<div>
+		<h3>Enter Service Credentials</h3>
+		<p>
+			<label>Server URL:<br>
+			<input type="text" id="config_server_url" style="width: 100%" placeholder="https://your-server.com"></label>
+		</p>
+		<p>
+			<label>API Key:<br>
+			<input type="password" id="config_api_key" style="width: 100%" placeholder="Your API key"></label>
+		</p>
+		<hr>
+		<button id="config_credentials_save">Save</button>
+		<button name="config_credentials_close">Cancel</button>
+		<input type="hidden" id="config_service_id">
+		<input type="hidden" id="config_type">
 	</div>
 </div>
 <div class="details" style="display: none" id="help_details">

@@ -246,9 +246,12 @@ class Immich(BaseService):
     # ------------------ Image Retrieval ------------------
 
     def getImagesFor(self, keyword, rawReturn=False):
-        """Get images for keyword, fetching full asset info from Immich"""
-        logging.warning(f'IMMICH GETIMAGESFOR CALLED: keyword="{keyword}", rawReturn={rawReturn}')
-        
+        """Get images for keyword from Immich album.
+
+        The album endpoint returns full asset metadata - no need for individual asset calls.
+        """
+        logging.debug(f'Immich getImagesFor: keyword="{keyword}"')
+
         query = self.getQueryForKeyword(keyword)
         if query is None:
             logging.error(f'Unable to create query for keyword "{keyword}"')
@@ -261,7 +264,7 @@ class Immich(BaseService):
 
         headers = {'x-api-key': config['api_key']}
 
-        # Fetch album metadata (contains asset IDs)
+        # Fetch album - this returns full asset metadata in one call
         album_url = f"{config['server_url']}/api/albums/{query['albumId']}"
         try:
             response = requests.get(album_url, headers=headers, timeout=30)
@@ -270,26 +273,12 @@ class Immich(BaseService):
                 return []
 
             album_data = response.json()
-            asset_refs = album_data.get('assets', [])
-            if not asset_refs:
-                logging.error(f'No assets found in album response for keyword "{keyword}"')
+            assets = album_data.get('assets', [])
+            if not assets:
+                logging.warning(f'No assets found in album for keyword "{keyword}"')
                 return []
 
-            # Fetch full info for each asset
-            full_assets = []
-            for i, asset in enumerate(asset_refs):
-                asset_id = asset.get('id')
-                if not asset_id:
-                    continue
-                asset_url = f"{config['server_url']}/api/assets/{asset_id}"
-                try:
-                    asset_resp = requests.get(asset_url, headers=headers, timeout=30)
-                    if asset_resp.ok:
-                        full_assets.append(asset_resp.json())
-                    else:
-                        logging.warning(f'Failed to fetch asset {asset_id}: {asset_resp.status_code}')
-                except Exception as e:
-                    logging.exception(f'Error fetching asset {asset_id}: {e}')
+            logging.info(f'Retrieved {len(assets)} assets from album "{keyword}"')
 
         except Exception as e:
             logging.error(f'Failed to get images for keyword "{keyword}": {e}')
@@ -299,14 +288,14 @@ class Immich(BaseService):
         filename = os.path.join(self.getStoragePath(), self.hashString(keyword) + '.json')
         try:
             with open(filename, 'w') as f:
-                json.dump(full_assets, f)
+                json.dump(assets, f)
         except Exception as e:
             logging.exception(f'Failed to save JSON cache file: {e}')
 
         if rawReturn:
-            return full_assets
+            return assets
 
-        return self.parseAlbumInfo(full_assets, keyword)
+        return self.parseAlbumInfo(assets, keyword)
 
     def parseAlbumInfo(self, data, keyword):
         """Convert Immich assets to ImageHolder objects that BaseService can use"""
@@ -330,8 +319,8 @@ class Immich(BaseService):
                 logging.debug(f'Asset {i+1}: skipping video {asset_id}')
                 continue
             
-            # Get the actual mimeType
-            mime_type = asset.get('mimeType')
+            # Get the actual mimeType (album endpoint returns 'originalMimeType')
+            mime_type = asset.get('originalMimeType') or asset.get('mimeType')
             
             # If mimeType is missing, try to infer from filename
             if not mime_type:
