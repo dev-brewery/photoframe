@@ -23,7 +23,7 @@ from modules.network import RequestResult
 from modules.helper import helper
 
 class GooglePhotos(BaseService):
-  SERVICE_NAME = 'GooglePhotos'
+  SERVICE_NAME = 'GooglePhotos (deprecated)'
   SERVICE_ID = 2
   MAX_ITEMS = 8000
 
