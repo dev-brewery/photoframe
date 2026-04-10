@@ -490,3 +490,75 @@ $('#explain_imagesizing').click(function() {
 $("button[name=help_close]").click(function() {
   $(this).parent().parent().hide();
 });
+
+// Immich config template download
+$('.service-config-template').click(function(e) {
+  e.preventDefault();
+  var template = {
+    "server_url": "https://your-immich-server.com",
+    "api_key": "your-api-key-here"
+  };
+  var blob = new Blob([JSON.stringify(template, null, 2)], {type: 'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'immich-config.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// Immich config form popup
+$('.service-config-form').click(function() {
+  var serviceId = $(this).data('service');
+  var configType = $(this).data('configtype');
+  $('#config_service_id').val(serviceId);
+  $('#config_type').val(configType);
+  $('#config_server_url').val('');
+  $('#config_api_key').val('');
+  $('#config_credentials').show();
+});
+
+$('#config_credentials_save').click(function() {
+  var serviceId = $('#config_service_id').val();
+  var configType = $('#config_type').val();
+  var serverUrl = $('#config_server_url').val().trim();
+  var apiKey = $('#config_api_key').val().trim();
+
+  if (!serverUrl || !apiKey) {
+    alert('Please enter both Server URL and API Key');
+    return;
+  }
+
+  var config = {
+    "server_url": serverUrl,
+    "api_key": apiKey
+  };
+
+  // Create a blob and upload it like a file
+  var blob = new Blob([JSON.stringify(config)], {type: 'application/json'});
+  var formData = new FormData();
+  formData.append('filename', blob, 'config.json');
+
+  $('#busy').show();
+  $.ajax({
+    url: '/service/' + serviceId + '/' + configType,
+    type: 'POST',
+    data: formData,
+    processData: false,
+    contentType: false
+  }).done(function(data) {
+    $('#busy').hide();
+    $('#config_credentials').hide();
+    alert('Configuration saved successfully!');
+    location.reload();
+  }).fail(function(data) {
+    $('#busy').hide();
+    alert('Failed to save configuration:\n' + data.responseText);
+  });
+});
+
+$("button[name=config_credentials_close]").click(function() {
+  $('#config_credentials').hide();
+});
