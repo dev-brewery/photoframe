@@ -32,6 +32,21 @@ from modules.images import ImageHolder
 
 from modules.memory import MemoryManager
 
+# Module-level session with connection pooling for efficiency
+_session = None
+
+def _get_session():
+  global _session
+  if _session is None:
+    _session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(
+      pool_connections=5,
+      pool_maxsize=10
+    )
+    _session.mount('https://', adapter)
+    _session.mount('http://', adapter)
+  return _session
+
 # This is the base implementation of a service. It provides all the
 # basic features like OAuth and Authentication as well as state and
 # all other goodies. Most calls will not be overriden unless specified.
@@ -714,13 +729,14 @@ class BaseService:
         logging.exception('request to download image failed')
         result = RequestResult().setResult(RequestResult.NO_NETWORK)
     else:
+      session = _get_session()
       tries = 0
       while tries < 5:
         try:
           if usePost:
-            r = requests.post(url, params=params, json=data, timeout=180)
+            r = session.post(url, params=params, json=data, timeout=180)
           else:
-            r = requests.get(url, params=params, timeout=180)
+            r = session.get(url, params=params, timeout=180)
           break
         except:
           logging.exception('Issues downloading')

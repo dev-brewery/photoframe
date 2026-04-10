@@ -127,11 +127,6 @@ class settings:
     if key in self.settings['cfg']:
       return self.settings['cfg'][key]
     logging.warning(f'Trying to access non-existent user config key "{key}"')
-    try:
-      a = 1 /0
-      a += 1
-    except:
-      logging.exception('Where did this come from??')
     return None
 
   def addKeyword(self, keyword):
