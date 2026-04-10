@@ -301,12 +301,16 @@ class Immich(BaseService):
         """Convert Immich assets to ImageHolder objects that BaseService can use"""
         logging.info(f'Parsing {len(data)} assets for keyword "{keyword}"')
         result = []
-        
+
         supported_images = {
             'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
             'image/webp', 'image/tiff', 'image/tif', 'image/bmp'
         }
-        
+
+        # Get config once outside the loop
+        config = self.getImmichConfiguration()
+        server_url = config.get('server_url', '') if config else ''
+
         for i, asset in enumerate(data):
             asset_id = asset.get('id')
             if not asset_id:
@@ -356,9 +360,8 @@ class Immich(BaseService):
             image.setMimetype(mime_type)
             
             # Set the URL - BaseService might check for this
-            config = self.getImmichConfiguration()
-            if config and 'server_url' in config:
-                image.url = f"{config['server_url']}/api/assets/{asset_id}/original"
+            if server_url:
+                image.url = f"{server_url}/api/assets/{asset_id}/original"
             
             # Set filename if available
             original_filename = asset.get('originalFileName')
@@ -387,8 +390,8 @@ class Immich(BaseService):
             image.allowCache(True)
             
             # Set source URL for UI display
-            if config and 'server_url' in config:
-                image.source = f"{config['server_url']}/photos/{asset_id}"
+            if server_url:
+                image.source = f"{server_url}/photos/{asset_id}"
             
             result.append(image)
             logging.debug(f'Added asset {asset_id} ({mime_type}) with dimensions {width}x{height}')
