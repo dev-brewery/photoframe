@@ -286,7 +286,7 @@ class helper:
 					'convert',
 					filename + '[0]',
 					'-resize',
-					resizeString % (displayWidth, displayHeight),
+					resizeString,
 					'-gravity',
 					'center',
 					'-crop',
