@@ -28,6 +28,26 @@ import modules.debug as debug
 from modules.sysconfig import sysconfig
 from modules.helper import helper
 
+# Determine rgb565 path relative to this module (works from /root/photoframe or /home/pi/photoframe)
+# Supports both 32-bit (armhf) and 64-bit (arm64) builds
+def _find_rgb565():
+    base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'rgb565')
+    candidates = ['rgb565', 'rgb565_arm64', 'rgb565_armhf']
+    for name in candidates:
+        path = os.path.join(base_dir, name)
+        if os.path.exists(path):
+            try:
+                # Test if binary actually runs on this architecture
+                result = subprocess.run([path], stdin=subprocess.DEVNULL, capture_output=True, timeout=2)
+                logging.debug(f'rgb565 binary {path} is usable')
+                return path
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+    logging.warning('No working rgb565 binary found, 16-bit displays may not work')
+    return os.path.join(base_dir, 'rgb565')  # Fallback to default name
+
+_RGB565_PATH = _find_rgb565()
+
 class display:
     def __init__(self, use_emulator=False, emulate_width=1280, emulate_height=720):
         self.void = open(os.devnull, 'wb')
@@ -209,7 +229,7 @@ class display:
             pip = None
             try:
                 with open(self.getDevice(), 'rb') as fb:
-                    src = subprocess.Popen(['/root/photoframe/rgb565/rgb565', 'reverse'], stdout=subprocess.PIPE, stdin=fb, stderr=self.void)
+                    src = subprocess.Popen([_RGB565_PATH, 'reverse'], stdout=subprocess.PIPE, stdin=fb, stderr=self.void)
                     pip = subprocess.Popen(args, stdin=src.stdout, stdout=subprocess.PIPE)
                     src.stdout.close()
                     result = pip.communicate()[0]
@@ -240,7 +260,7 @@ class display:
             try:
                 with open(device, 'wb') as fb:
                     src = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=self.void)
-                    pip = subprocess.Popen(['/root/photoframe/rgb565/rgb565'], stdin=src.stdout, stdout=fb)
+                    pip = subprocess.Popen([_RGB565_PATH], stdin=src.stdout, stdout=fb)
                     src.stdout.close()
                     pip.communicate()
             finally:
