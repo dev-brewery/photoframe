@@ -44,7 +44,7 @@ class remember:
 			logging.warning(f"Asked to delete {self.filename} but it doesn't exist")
 
 	def _hash(self, text):
-		return hashlib.sha1(text).hexdigest()
+		return hashlib.sha1(text.encode('utf-8')).hexdigest()
 
 	def saw(self, url):
 		index = self._hash(url)

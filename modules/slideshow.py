@@ -19,6 +19,8 @@ import threading
 import logging
 import os
 import time
+import gc
+import atexit
 from pathlib import Path
 
 from modules.helper import helper
@@ -38,6 +40,7 @@ class slideshow:
     self.history = history
     self.cacheMgr = None
     self.void = open(os.devnull, 'wb')
+    atexit.register(self._cleanup)
     self.delayer = threading.Event()
     self.cbStopped = None
 
@@ -52,6 +55,10 @@ class slideshow:
     self.supportedFormats = helper.getSupportedTypes()
 
     self.running = True
+
+  def _cleanup(self):
+    if hasattr(self, 'void') and self.void:
+      self.void.close()
 
   def setCountdown(self, seconds):
     if seconds < 1:
@@ -87,18 +94,24 @@ class slideshow:
     if blank:
       self.display.clear()
 
-    if self.thread is None:
-      self.thread = threading.Thread(target=self.presentation)
-      self.thread.daemon = True
-      self.running = True
-      self.imageCurrent = None
-      self.thread.start()
+    # Ensure previous thread is cleaned up before starting new one
+    self.stop()
+
+    self.thread = threading.Thread(target=self.presentation)
+    self.thread.daemon = True
+    self.running = True
+    self.imageCurrent = None
+    self.thread.start()
 
   def stop(self, cbStopped=None):
     self.cbStopped = cbStopped
     self.running = False
     self.imageCurrent = None
     self.delayer.set()
+    # Wait for thread to finish
+    if self.thread is not None and self.thread.is_alive():
+      self.thread.join(timeout=5.0)
+    self.thread = None
 
   def trigger(self):
     logging.debug('Causing immediate showing of image')
@@ -288,6 +301,7 @@ class slideshow:
 
       if (i % 10) == 0:
         self.cacheMgr.garbageCollect()
+        gc.collect()  # Periodic garbage collection to manage memory on Pi
 
       displaySize = {'width': self.settings.getUser('width'), 'height': self.settings.getUser('height'), 'force_orientation': self.settings.getUser('force_orientation')}
       randomize = self.settings.getUser('randomize_images')
