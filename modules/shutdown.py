@@ -19,6 +19,7 @@ import subprocess
 import os
 import socket
 import logging
+import atexit
 
 class shutdown(Thread):
 	def __init__(self, usePIN=26):
@@ -26,8 +27,13 @@ class shutdown(Thread):
 		self.daemon = True
 		self.gpio = usePIN
 		self.void = open(os.devnull, 'wb')
+		atexit.register(self._cleanup)
 		self.client, self.server = socket.socketpair()
 		self.start()
+
+	def _cleanup(self):
+		if hasattr(self, 'void') and self.void:
+			self.void.close()
 
 	def stopmonitor(self):
 		self.client.close()
@@ -38,20 +44,20 @@ class shutdown(Thread):
 		poller = select.poll()
 		try:
 			with open('/sys/class/gpio/export', 'wb') as f:
-				f.write(f'{self.gpio}')
+				f.write(str(self.gpio).encode('utf-8'))
 		except:
 			# Usually it means we ran this before
 			pass
 		try:
 			with open(f'/sys/class/gpio/gpio{self.gpio}/direction', 'wb') as f:
-				f.write('in')
+				f.write(b'in')
 		except:
 			logging.warn('Either no GPIO subsystem or no access')
 			return
 		with open(f'/sys/class/gpio/gpio{self.gpio}/edge', 'wb') as f:
-			f.write('both')
+			f.write(b'both')
 		with open(f'/sys/class/gpio/gpio{self.gpio}/active_low', 'wb') as f:
-			f.write('1')
+			f.write(b'1')
 		with open(f'/sys/class/gpio/gpio{self.gpio}/value', 'rb') as f:
 			f.read()
 			poller.register(f, select.POLLPRI)

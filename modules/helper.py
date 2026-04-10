@@ -383,14 +383,26 @@ class helper:
 		return helper._checkNetwork() is not None
 
 	@staticmethod
-	def waitForNetwork(funcNoNetwork, funcExit):
-		while True:
+	def waitForNetwork(funcNoNetwork, funcExit, timeout=60):
+		"""Wait for network connectivity with timeout.
+
+		Args:
+			funcNoNetwork: Callback when no network is available
+			funcExit: Callback that returns True to exit early
+			timeout: Maximum seconds to wait (default 60)
+
+		Returns:
+			True if network is available, False if timed out
+		"""
+		start = time.time()
+		while time.time() - start < timeout:
 			if helper.hasNetwork():
-				return
+				return True
 			funcNoNetwork()
 			if funcExit():
-				return
+				return False
 			time.sleep(5)
+		return False
 
 	@staticmethod
 	def autoRotate(ifile):

@@ -21,6 +21,7 @@ import logging
 import time
 import re
 import json
+import atexit
 from pathlib import Path
 
 import modules.debug as debug
@@ -30,6 +31,7 @@ from modules.helper import helper
 class display:
     def __init__(self, use_emulator=False, emulate_width=1280, emulate_height=720):
         self.void = open(os.devnull, 'wb')
+        atexit.register(self._cleanup)
         self.params = None
         self.special = None
         self.emulate = use_emulator
@@ -42,6 +44,10 @@ class display:
         if self.emulate:
             logging.info('Using framebuffer emulation')
         self.lastMessage = None
+
+    def _cleanup(self):
+        if hasattr(self, 'void') and self.void:
+            self.void.close()
 
     def setConfigPage(self, url):
         self.url = url
@@ -148,11 +154,21 @@ class display:
                 pip = subprocess.Popen(args, stdin=fb, stdout=subprocess.PIPE, stderr=self.void)
                 result = pip.communicate()[0]
         elif self.depth == 16:
-            with open(self.getDevice(), 'rb') as fb:
-                src = subprocess.Popen(['/root/photoframe/rgb565/rgb565', 'reverse'], stdout=subprocess.PIPE, stdin=fb, stderr=self.void)
-                pip = subprocess.Popen(args, stdin=src.stdout, stdout=subprocess.PIPE)
-                src.stdout.close()
-                result = pip.communicate()[0]
+            src = None
+            pip = None
+            try:
+                with open(self.getDevice(), 'rb') as fb:
+                    src = subprocess.Popen(['/root/photoframe/rgb565/rgb565', 'reverse'], stdout=subprocess.PIPE, stdin=fb, stderr=self.void)
+                    pip = subprocess.Popen(args, stdin=src.stdout, stdout=subprocess.PIPE)
+                    src.stdout.close()
+                    result = pip.communicate()[0]
+            finally:
+                if src:
+                    src.terminate()
+                    src.wait()
+                if pip:
+                    pip.terminate()
+                    pip.wait()
         else:
             logging.error('Do not know how to grab this kind of framebuffer')
         return (result, 'image/jpeg')
@@ -168,11 +184,21 @@ class display:
                 debug.subprocess_call(arguments, stdout=f, stderr=self.void)
         elif self.depth == 16:  # Typically RGB565
             # For some odd reason, cannot pipe the output directly to the framebuffer, use temp file
-            with open(device, 'wb') as fb:
-                src = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=self.void)
-                pip = subprocess.Popen(['/root/photoframe/rgb565/rgb565'], stdin=src.stdout, stdout=fb)
-                src.stdout.close()
-                pip.communicate()
+            src = None
+            pip = None
+            try:
+                with open(device, 'wb') as fb:
+                    src = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=self.void)
+                    pip = subprocess.Popen(['/root/photoframe/rgb565/rgb565'], stdin=src.stdout, stdout=fb)
+                    src.stdout.close()
+                    pip.communicate()
+            finally:
+                if src:
+                    src.terminate()
+                    src.wait()
+                if pip:
+                    pip.terminate()
+                    pip.wait()
         else:
             logging.error(f'Do not know how to render this, depth is {self.depth}')
 

@@ -23,7 +23,7 @@ from modules.network import RequestResult
 from modules.helper import helper
 
 class GooglePhotos(BaseService):
-  SERVICE_NAME = 'GooglePhotos'
+  SERVICE_NAME = 'GooglePhotos (deprecated)'
   SERVICE_ID = 2
   MAX_ITEMS = 8000
 
@@ -91,9 +91,9 @@ class GooglePhotos(BaseService):
       return f'Out of range, index = {index}'
     keyword = keys[index]
     extras = self.getExtras()
-    if keywords not in extras:
+    if keyword not in extras:
       return 'https://photos.google.com/'
-    return extras[keywords]['sourceUrl']
+    return extras[keyword]['sourceUrl']
 
   def getKeywordDetails(self, index):
     # Override so we can tell more, for google it means we simply review what we would show

@@ -19,6 +19,7 @@ import logging
 import tempfile
 import shutil
 import json
+import atexit
 
 from modules.path import path
 
@@ -27,11 +28,16 @@ class drivers:
 
 	def __init__(self):
 		self.void = open(os.devnull, 'wb')
+		atexit.register(self._cleanup)
 		if not os.path.exists(path.DRV_EXTERNAL):
 			try:
 				os.mkdir(path.DRV_EXTERNAL)
 			except:
 				logging.exception(f'Unable to create "{path.DRV_EXTERNAL}"')
+
+	def _cleanup(self):
+		if hasattr(self, 'void') and self.void:
+			self.void.close()
 
 	def _list_dir(self, path):
 		result = {}
@@ -244,7 +250,7 @@ class drivers:
 		# Next, load the config.txt and insert/replace our section
 		lines = []
 		try:
-			with open(path.CONFIG_TXT, 'rb') as f:
+			with open(path.CONFIG_TXT, 'r') as f:
 				for line in f:
 					line = line.strip()
 					if line == drivers.MARKER:
@@ -262,9 +268,9 @@ class drivers:
 
 		# Save the new file
 		try:
-			with open('/boot/config.txt.new', 'wb') as f:
+			with open('/boot/config.txt.new', 'w') as f:
 				for line in lines:
-					f.write('%s\n' % line)
+					f.write(f'{line}\n')
 		except:
 			logging.exception('Failed to generate new config.txt')
 			return None

@@ -24,6 +24,7 @@ except ImportError:
 import time
 import os
 import subprocess
+import atexit
 
 class colormatch(Thread):
 	def __init__(self, script, min = None, max = None):
@@ -34,6 +35,7 @@ class colormatch(Thread):
 		self.lux = None
 		self.script = script
 		self.void = open(os.devnull, 'wb')
+		atexit.register(self._cleanup)
 		self.min = min
 		self.max = max
 		self.listener = None
@@ -45,6 +47,10 @@ class colormatch(Thread):
 
 		if not COLORMATCH_DISABLE:
 			self.start()
+
+	def _cleanup(self):
+		if hasattr(self, 'void') and self.void:
+			self.void.close()
 
 	def setLimits(self, min, max):
 		self.min = min
