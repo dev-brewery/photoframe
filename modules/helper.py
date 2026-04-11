@@ -47,8 +47,9 @@ class helper:
 		'image/jpeg' : 'jpg',
 		'image/png' : 'png',
 		'image/gif' : 'gif',
-		'image/bmp' : 'bmp'
-		# HEIF to be added once I get ImageMagick running with support
+		'image/bmp' : 'bmp',
+		'image/heic' : 'heic',
+		'image/heif' : 'heif'
 	}
 
 
