@@ -112,3 +112,4 @@ ENV/
 # Keep: Dockerfile, docker-compose.yml, requirements-docker.txt, DOCKER_SETUP.md
 
 .claude/
+.gemini/
