@@ -126,8 +126,8 @@ class WebServer(Thread):
             lines = traceback.format_exc().splitlines()
             message = '''
             <html><head><title>Internal error</title></head><body style="font-family: Verdana"><h1>Uh oh, something went wrong...</h1>
-            Please go to <a href="https://github.com/mrworf/photoframe/issues">github</a>
-            and see if this is a known issue, if not, feel free to file a <a href="https://github.com/mrworf/photoframe/issues/new">new issue<a> with the
+            Please go to <a href="https://github.com/dev-brewery/photoframe/issues">github</a>
+            and see if this is a known issue, if not, feel free to file a <a href="https://github.com/dev-brewery/photoframe/issues/new">new issue<a> with the
             following information:
             <pre style="margin: 15pt; padding: 10pt; border: 1px solid; background-color: #eeeeee">'''
             for line in lines:

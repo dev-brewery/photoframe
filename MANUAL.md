@@ -61,7 +61,7 @@ Finally, time to install photoframe, which means downloading the repo, install t
 
 ```
 cd /root
-git clone https://github.com/mrworf/photoframe.git
+git clone https://github.com/dev-brewery/photoframe.git
 cd photoframe
 cp frame.service /etc/systemd/system/
 systemctl enable /etc/systemd/system/frame.service

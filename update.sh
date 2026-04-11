@@ -79,7 +79,12 @@ if [ "$1" = "post" ]; then
 
 	# We also have added more dependencies, so add more software
 	apt-get update
-	apt-get install -y libjpeg-turbo-progs python-netifaces
+	apt-get install -y libjpeg-turbo-progs python3-netifaces
+
+	# Install Python pip dependencies if requirements.txt exists
+	if [ -f /root/photoframe/requirements.txt ]; then
+		pip3 install -r /root/photoframe/requirements.txt 2>/dev/null || true
+	fi
 
 	# Copy new service and reload systemd
 	cp frame.service /etc/systemd/system/

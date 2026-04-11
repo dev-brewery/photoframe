@@ -37,7 +37,7 @@ class RouteDebug(BaseRoute):
 
     message = '<html><head><title>Photoframe Log Report</title></head><body style="font-family: Verdana">'
     message = '''<h1>Photoframe Log report</h1><div style="margin: 15pt; padding 10pt">This page is intended to be used when you run into issues which cannot be resolved by the messages displayed on the frame. Please save and attach this information
-    when you <a href="https://github.com/mrworf/photoframe/issues/new">create a new issue</a>.<br><br>Thank you for helping making this project better &#128517;</div>'''
+    when you <a href="https://github.com/dev-brewery/photoframe/issues/new">create a new issue</a>.<br><br>Thank you for helping making this project better &#128517;</div>'''
     for item in report:
       message += f'<h1>{item[0]}</h1><pre style="margin: 15pt; padding: 10pt; border: 1px solid; background-color: #eeeeee">'
       if item[1]:
