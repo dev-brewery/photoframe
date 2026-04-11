@@ -102,6 +102,7 @@ class BaseService:
     self._NEED_CONFIG = needConfig
     self._NEED_OAUTH = needOAuth
     self._NEED_IMMICH_CONFIG = needImmichConfig
+    self._IMAGE_CACHE = {}
 
     self._DIR_BASE = self._prepareFolders(configDir)
     self._DIR_PRIVATE = os.path.join(self._DIR_BASE, 'private')
@@ -491,6 +492,12 @@ class BaseService:
     return result
 
   def _getImagesFor(self, keyword):
+    # Return cached images if the scan is still fresh
+    now = time.time()
+    next_scan = self._STATE['_NEXT_SCAN'].get(keyword, 0)
+    if next_scan > now and keyword in self._IMAGE_CACHE:
+      return self._IMAGE_CACHE[keyword]
+
     images = self.getImagesFor(keyword)
     if images is None:
       logging.warning('Function returned None, this is used sometimes when a temporary error happens. Still logged')
@@ -498,9 +505,11 @@ class BaseService:
     if images is not None and len(images) > 0:
       self._STATE["_NUM_IMAGES"][keyword] = len(images)
       # Change next time for refresh (postpone if you will)
-      self._STATE['_NEXT_SCAN'][keyword] = time.time() + self.REFRESH_DELAY
+      self._STATE['_NEXT_SCAN'][keyword] = now + self.REFRESH_DELAY
+      self._IMAGE_CACHE[keyword] = images
     else:
       self._STATE["_NUM_IMAGES"][keyword] = 0
+      self._IMAGE_CACHE.pop(keyword, None)
     return images
 
   def getImagesFor(self, keyword):
@@ -523,6 +532,7 @@ class BaseService:
   def _clearImagesFor(self, keyword):
     self._STATE["_NUM_IMAGES"].pop(keyword, None)
     self._STATE['_NEXT_SCAN'].pop(keyword, None)
+    self._IMAGE_CACHE.pop(keyword, None)
     self.memory.forget(keyword)
     self.clearImagesFor(keyword)
 
