@@ -362,9 +362,11 @@ class Immich(BaseService):
             # Set the mimetype - BaseService filters by this
             image.setMimetype(mime_type)
             
-            # Set the URL - BaseService might check for this
+            # Set the URL - use preview endpoint by default to avoid OOM on
+            # memory-constrained devices. getContentUrl() upgrades to original
+            # or fullsize when display hints indicate it's safe.
             if server_url:
-                image.url = f"{server_url}/api/assets/{asset_id}/original"
+                image.url = f"{server_url}/api/assets/{asset_id}/thumbnail?size=preview"
             
             # Set filename if available
             original_filename = asset.get('originalFileName')
