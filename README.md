@@ -117,7 +117,70 @@ Photoframe listens on GPIO 26 (configurable) for power control. Connect a moment
 
 ### How do I get SSH access?
 
-Place a file called `ssh` on the boot partition. Login with the default Raspberry Pi OS credentials. Avoid modifying files in `/root/photoframe/` directly, as this will prevent automatic updates via `update.sh`.
+It depends on which install path you used.
+
+**If you flashed the SD card image (Option 2):** SSH is enabled out of the box and the image ships with a default account so you can get in from any OS (Windows, macOS, Linux) without extra setup:
+
+- **Username:** `photoframe`
+- **Password:** `photoframe`
+
+```bash
+ssh photoframe@<your-pi-ip>
+```
+
+**Change the password immediately on first login:**
+
+```bash
+passwd
+```
+
+If you'd rather use a different username, create one and remove the default after logging in:
+
+```bash
+sudo adduser yourname
+sudo usermod -aG sudo yourname
+# log out, log back in as yourname, then:
+sudo deluser --remove-home photoframe
+```
+
+**If you installed via `install.sh` on a fresh Raspberry Pi OS (Option 1):** SSH and user accounts are whatever you configured when flashing Raspberry Pi OS itself. If you used Raspberry Pi Imager's advanced settings (gear icon) to set a username, password, and enable SSH, you're already set — just `ssh <youruser>@<your-pi-ip>`. Otherwise, enable SSH on the Pi with `sudo raspi-config` (Interfaces → SSH), or place an empty file named `ssh` on the boot partition before first boot.
+
+Avoid modifying files in `/root/photoframe/` directly, as this will prevent automatic updates via `update.sh`.
+
+### My display shows nothing or the wrong resolution
+
+Most HDMI monitors are auto-detected via EDID. If you're driving an atypical panel (e.g. an HDMI-to-LVDS adapter board feeding a laptop LCD) that doesn't report EDID, you'll need to force the mode manually. The right place to do this depends on which Raspberry Pi OS release you're on, because Bookworm and Bullseye use different display stacks.
+
+**On Bookworm (KMS driver):** custom modes go on the kernel command line, not in `config.txt`. Legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` / `hdmi_force_hotplug` settings in `config.txt` are silently ignored under the `vc4-kms-v3d` driver.
+
+```bash
+sudo nano /boot/firmware/cmdline.txt
+```
+
+`cmdline.txt` is a single line — do not add newlines. Append (with a leading space):
+
+```
+video=HDMI-A-1:1366x768M@60D
+```
+
+Replace `1366x768` with your panel's native resolution. The `M` suffix requests CVT timings; the `D` suffix forces DVI-style output and tells the kernel to treat the port as connected even without HPD. Reboot to apply.
+
+**On Bullseye (legacy firmware display path):** the traditional `config.txt` knobs still work.
+
+```bash
+sudo nano /boot/config.txt
+```
+
+Add:
+
+```
+hdmi_force_hotplug=1
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=1366 768 60 3 0 0 1
+```
+
+Replace `1366 768` with your panel's native resolution. `hdmi_mode=87` is the "use custom CVT" slot that activates `hdmi_cvt`; `hdmi_force_hotplug=1` is required because most driver boards don't assert HPD. Reboot to apply.
 
 ### Are there logs?
 
