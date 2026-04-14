@@ -183,7 +183,7 @@ class slideshow:
   def waitForNetwork(self):
     self.imageCurrent = None
     helper.waitForNetwork(
-      lambda: self.display.message('No internet connection\n\nCheck router, wifi-config.txt or cable'),
+      lambda: self.display.message('No internet connection\n\nCheck router, /boot/firmware/wifi-config.txt, or cable'),
       lambda: self.settings.getUser('offline-behavior') != 'wait'
     )
     self.display.setConfigPage(f'http://{helper.getDeviceIp()}:7777/')
