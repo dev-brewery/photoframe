@@ -1,5 +1,14 @@
 # Manual installation
 
+> **Note:** This document describes the pre-Bookworm installation process
+> using minibian, Python 2, and `/etc/network/interfaces` + `wpa_supplicant.conf`.
+> These mechanisms no longer work on current Raspberry Pi OS Bookworm — the
+> package names are obsolete, NetworkManager has replaced wpa_supplicant for
+> network configuration, and the boot-partition paths have moved from `/boot/`
+> to `/boot/firmware/`. This document is preserved for historical reference.
+>
+> **For current Raspberry Pi OS Bookworm users, see [MANUALv3.md](MANUALv3.md).**
+
 First, install your favorite debian distro (recommend minibian, https://minibianpi.wordpress.com/ )
 
 NOTE!
