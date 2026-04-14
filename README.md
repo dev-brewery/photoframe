@@ -54,13 +54,57 @@ The installer handles all dependencies, service setup, and auto-update configura
 
 Default credentials: `photoframe` / `password` (change via `http-auth.json` in `/root/photoframe_config/`)
 
-### Option 2: SD card image
+### Option 2: SD card image (recommended for first-time users)
 
-Download from the [releases page](https://github.com/dev-brewery/photoframe/releases), flash to SD card with [Rufus](https://rufus.ie/), [Balena Etcher](https://etcher.balena.io/), or `dd`.
+Pre-built Raspberry Pi OS Lite images with photoframe preinstalled are attached to releases on the [photoframe releases page](https://github.com/dev-brewery/photoframe/releases). Flash, edit two files on the boot partition, boot, done. The image is built by the [`dev-brewery/pi-gen`](https://github.com/dev-brewery/pi-gen) fork (branch `bookworm-photoframe`) — see its [`HISTORY.md`](https://github.com/dev-brewery/pi-gen/blob/bookworm-photoframe/HISTORY.md) for how the image is produced if you want to rebuild from source.
 
-1. Flash image to SD card
-2. Edit `wifi-config.txt` on the `boot` partition with your WiFi credentials
-3. Boot the Pi and follow the on-screen instructions
+**Step 1 — flash the image.** Download the `.img.zip` from the releases page and flash with [Raspberry Pi Imager](https://www.raspberrypi.com/software/) (recommended), [Balena Etcher](https://etcher.balena.io/), [Rufus](https://rufus.ie/) in DD mode, or `dd` on Linux/Mac. In Raspberry Pi Imager, choose **"Use custom"** and point at the `.zip`.
+
+**Do not use Imager's gear icon / advanced settings** — those are greyed out for custom images, and the image already has its own mechanisms for every setting Imager would configure. Just flash it.
+
+**Step 2 — configure WiFi.** After Imager finishes, the SD card's `bootfs` partition is visible in Windows Explorer (or as `/Volumes/bootfs` on macOS, or auto-mounted on Linux). Open **`wifi-config.txt`** in a text editor that preserves Unix line endings (Notepad++, VS Code, `nano`, or `vim` — **not** regular Windows Notepad, which mangles line endings). Fill in your network:
+
+```ini
+[wifi]
+SSID=YourNetworkName
+PSK=YourPassword
+COUNTRY=US
+```
+
+Set `COUNTRY` to your ISO 3166-1 alpha-2 code (`GB`, `DE`, `CA`, `JP`, ...) if you're outside the US. Save the file. On first boot, the Pi reads this file, connects to your WiFi, and renames the file to `wifi-config.txt.applied` so you know it worked. If something goes wrong, a `wifi-config.txt.error` file appears with the reason.
+
+**Step 3 (optional) — force a custom display resolution.** Most HDMI monitors are auto-detected via EDID and need no configuration. If you're driving an atypical panel — e.g., an HDMI-to-LVDS adapter board feeding an old laptop LCD — edit **`cmdline.txt`** on the same `bootfs` partition and append the video mode to the single existing line (with a leading space, no newlines):
+
+```
+ video=HDMI-A-1:1366x768MR@60
+```
+
+Replace `1366x768` with your panel's native resolution. The `M` flag is CVT timings; `R` is reduced blanking; `@60` is the refresh rate. On Bookworm's KMS driver, the legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` options in `config.txt` are silently ignored — `cmdline.txt` is the only file that works.
+
+**Step 4 — eject and boot.** Safely eject the SD card from your computer, insert it into the Pi, and power on. Within 30 seconds the photoframe service starts, WiFi associates, and the frame is reachable on your network at `http://<pi-ip>:7777`.
+
+**Step 5 — SSH in and change the password.** The image ships with a default account so you can manage the Pi without any setup:
+
+- **Username:** `photoframe`
+- **Password:** `photoframe`
+
+From any computer on the same network:
+
+```bash
+ssh photoframe@<pi-ip>
+passwd    # change the password immediately on first login
+```
+
+If you'd rather use a different username, create one and remove the default after logging in:
+
+```bash
+sudo adduser yourname
+sudo usermod -aG sudo yourname
+# log out, log back in as yourname, then:
+sudo deluser --remove-home photoframe
+```
+
+The default web UI credentials (separate from SSH) are `photoframe` / `password` — change them via `http-auth.json` in `/root/photoframe_config/` or through the web UI.
 
 ### Option 3: Migrate from mrworf/photoframe
 
