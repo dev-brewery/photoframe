@@ -750,6 +750,9 @@ class display:
             if enable:
                 logging.info('Modern display enable: taking control from desktop environment')
                 
+                # Stop the display manager (Bookworm desktop ships lightdm; harmless no-op on Lite)
+                debug.subprocess_call(['sudo', 'systemctl', 'stop', 'lightdm.service'], stderr=self.void)
+
                 # Kill any running desktop environment processes that might interfere
                 debug.subprocess_call(['sudo', 'pkill', '-f', 'lxsession'], stderr=self.void)
                 debug.subprocess_call(['sudo', 'pkill', '-f', 'openbox'], stderr=self.void)
