@@ -15,7 +15,7 @@
 #
 [Unit]
 Description=Photo Frame
-After=network.target
+After=network.target lightdm.service
 
 [Service]
 Type=simple
