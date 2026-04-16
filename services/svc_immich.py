@@ -404,6 +404,10 @@ class Immich(BaseService):
         logging.info(f'Parsed {len(result)} supported images from {len(data)} total assets')
         return result
 
+    # ImageMagick policy limits (from /etc/ImageMagick-6/policy.xml on Bookworm)
+    IMAGEMAGICK_MAX_DIMENSION = 16384  # 16KP width/height limit
+    IMAGEMAGICK_MAX_AREA = 128_000_000  # 128MP area limit
+
     def getContentUrl(self, image, hints):
         config = self.getImmichConfiguration()
         if not config or 'server_url' not in config:
@@ -417,7 +421,7 @@ class Immich(BaseService):
         if image.dimensions:
             width = image.dimensions.get('width', 0)
             height = image.dimensions.get('height', 0)
-            if width > 0 and height > 0 and self._canProcessFullRes(width, height):
+            if width > 0 and height > 0 and self._canProcessImage(width, height):
                 disp = hints.get('display', {}) if hints else {}
                 max_display = max(disp.get('width', 0), disp.get('height', 0))
                 if max_display > 1920:
@@ -427,7 +431,12 @@ class Immich(BaseService):
 
         return f"{config['server_url']}/api/assets/{asset_id}/{endpoint}"
 
-    def _canProcessFullRes(self, width, height):
+    def _canProcessImage(self, width, height):
+        """Check available memory and ImageMagick policy limits."""
+        if width > self.IMAGEMAGICK_MAX_DIMENSION or height > self.IMAGEMAGICK_MAX_DIMENSION:
+            return False
+        if width * height > self.IMAGEMAGICK_MAX_AREA:
+            return False
         estimated_mb = (width * height * 20) / (1024 * 1024)
         safety_buffer_mb = 200
         available_mb = self._getAvailableMemoryMB()
