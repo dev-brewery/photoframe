@@ -304,7 +304,8 @@ class Immich(BaseService):
 
         supported_images = {
             'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
-            'image/webp', 'image/tiff', 'image/tif', 'image/bmp'
+            'image/webp', 'image/tiff', 'image/tif', 'image/bmp',
+            'image/heic', 'image/heif'
         }
 
         # Get config once outside the loop
@@ -341,6 +342,8 @@ class Immich(BaseService):
                     mime_type = 'image/tiff'
                 elif original_filename.endswith('.bmp'):
                     mime_type = 'image/bmp'
+                elif original_filename.endswith(('.heic', '.heif')):
+                    mime_type = 'image/heic'
                 else:
                     mime_type = 'image/jpeg'
                     logging.debug(f'Asset {i+1}: defaulting to image/jpeg for {asset_id}')
@@ -406,7 +409,37 @@ class Immich(BaseService):
         asset_id = image.id
         if not asset_id:
             return None
-        return f"{config['server_url']}/api/assets/{asset_id}/original"
+
+        endpoint = 'thumbnail?size=preview'
+
+        if image.dimensions:
+            width = image.dimensions.get('width', 0)
+            height = image.dimensions.get('height', 0)
+            if width > 0 and height > 0 and self._canProcessFullRes(width, height):
+                disp = hints.get('display', {}) if hints else {}
+                max_display = max(disp.get('width', 0), disp.get('height', 0))
+                if max_display > 1920:
+                    endpoint = 'original'
+                else:
+                    endpoint = 'thumbnail?size=fullsize'
+
+        return f"{config['server_url']}/api/assets/{asset_id}/{endpoint}"
+
+    def _canProcessFullRes(self, width, height):
+        estimated_mb = (width * height * 20) / (1024 * 1024)
+        safety_buffer_mb = 200
+        available_mb = self._getAvailableMemoryMB()
+        return available_mb >= estimated_mb + safety_buffer_mb
+
+    def _getAvailableMemoryMB(self):
+        try:
+            with open('/proc/meminfo', 'r') as f:
+                for line in f:
+                    if line.startswith('MemAvailable:'):
+                        return int(line.split()[1]) / 1024
+        except Exception:
+            return 0
+        return 0
 
     def requestUrl(self, url, destination=None, params=None, data=None, usePost=False):
         """Override to add Immich authentication headers"""
