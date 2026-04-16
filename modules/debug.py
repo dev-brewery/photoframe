@@ -65,13 +65,26 @@ def logfile(all=False):
     
     log_file = None
     for loc in log_locations:
-        if os.path.exists(loc):
+        if os.path.isfile(loc):
             log_file = loc
             break
     
     if log_file is None:
-        return ('System Log', ['No system log file found in common locations'], None)
-    
+        # No traditional log file found; fall back to journalctl (Bookworm+)
+        try:
+            title = 'Last 100 lines from the photoframe log'
+            cmd = 'journalctl -u frame.service --no-pager -n 100'
+            if all:
+                title = 'Last 100 lines from the system journal'
+                cmd = 'journalctl --no-pager -n 100'
+            lines = subprocess.check_output(cmd, shell=True).decode('utf-8')
+            if lines:
+                lines = lines.splitlines()
+            return (title, lines, '(via journalctl)')
+        except (subprocess.CalledProcessError, OSError, FileNotFoundError) as e:
+            logging.exception('Unable to read journal')
+            return ('System Log', [f'No log file found and journalctl failed: {str(e)}'], None)
+
     try:
         stats = os.stat(log_file)
         cmd = r'grep -a "photoframe\[" ' + log_file + ' | tail -n 100'
