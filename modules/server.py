@@ -69,7 +69,7 @@ class WebServer(Thread):
         logging.getLogger('oauthlib').setLevel(log_level)
         logging.getLogger('urllib3').setLevel(log_level)
 
-        self.app.error_handler_spec = {None: {None : { Exception : self._showException }}}
+        self.app.register_error_handler(Exception, self._showException)
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
         self.app.secret_key = os.urandom(24)
         self._registerHandlers()
