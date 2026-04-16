@@ -608,7 +608,7 @@ class BaseService:
 
       try:
         result = self.requestUrl(url, destination=filename)
-      except (RequestResult.RequestExpiredToken, RequestInvalidToken):
+      except (RequestExpiredToken, RequestInvalidToken):
         logging.exception('Cannot fetch due to token issues')
         result = RequestResult().setResult(RequestResult.OAUTH_INVALID)
         self._OAUTH = None
