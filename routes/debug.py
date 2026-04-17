@@ -20,10 +20,9 @@ import modules.debug as debug
 from .baseroute import BaseRoute
 
 class RouteDebug(BaseRoute):
-  SIMPLE = True # We have no dependencies to the rest of the system
-
-  def setup(self):
-    self.addUrl('/debug')    
+  def setupex(self, displaymgr):
+    self.displaymgr = displaymgr
+    self.addUrl('/debug')
 
   def handle(self, app, **kwargs):
     # Special URL, we simply try to extract latest 100 lines from syslog
@@ -33,6 +32,7 @@ class RouteDebug(BaseRoute):
     report.append(debug.version())
     report.append(debug.logfile(False))
     report.append(debug.logfile(True))
+    report.append(debug.display_diagnostics(self.displaymgr))
     report.append(debug.stacktrace())
 
     message = '<html><head><title>Photoframe Log Report</title></head><body style="font-family: Verdana">'

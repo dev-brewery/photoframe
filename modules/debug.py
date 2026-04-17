@@ -101,6 +101,23 @@ def logfile(all=False):
         logging.exception('Unable to read log file')
         return (title, [f'Unable to read log file: {str(e)}'], None)
 
+def display_diagnostics(displaymgr):
+    title = 'Display diagnostics'
+    lines = []
+    try:
+        d = displaymgr.get_display_diagnostics()
+        for k, v in d.items():
+            if isinstance(v, dict):
+                lines.append(f'{k}:')
+                for sk, sv in v.items():
+                    lines.append(f'  {sk}: {sv}')
+            else:
+                lines.append(f'{k}: {v}')
+    except Exception as e:
+        logging.exception('Unable to read display diagnostics')
+        lines = [f'Unable to read display diagnostics: {str(e)}']
+    return (title, lines, None)
+
 def version():
     title = 'Running version'
     try:
