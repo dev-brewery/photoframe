@@ -149,6 +149,7 @@ class Photoframe:
     self._loadRoute('service', 'RouteService', self.serviceMgr, self.slideshow)
     self._loadRoute('control', 'RouteControl', self.slideshow)
     self._loadRoute('events', 'RouteEvents', self.eventMgr)
+    self._loadRoute('debug', 'RouteDebug', self.displayMgr)
 
   def validateSettings(self):
     if not self.settingsMgr.load():
