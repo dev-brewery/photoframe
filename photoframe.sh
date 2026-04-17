@@ -26,11 +26,11 @@ fi
 
 # If we never did update, this would be a good time
 if [ ! -f /root/.firstupdate ]; then
-  ./update.sh onlyupdate
+  ./update.sh updateonly
 elif [ -f /boot/forceupdate.txt ]; then
   # If this file is found, force an update on boot,
   # even if we've already done this once
-  ./update.sh onlyupdate
+  ./update.sh updateonly
   rm /boot/forceupdate.txt
 fi
 
