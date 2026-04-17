@@ -183,8 +183,18 @@ class Photoframe:
     path.reassignBase('/tmp/photoframe')
     path.reassignConfigTxt('extras/config.txt')
 
+  def _shutdown(self, signum, frame):
+    logging.info('Shutdown signal %d received, cleaning up', signum)
+    try:
+      self.displayMgr.enable(False)
+    except Exception:
+      logging.exception('display.enable(False) raised during shutdown')
+    sys.exit(0)
+
   def start(self):
     signal.signal(signal.SIGHUP, lambda x, y: self.updating(x,y))
+    signal.signal(signal.SIGTERM, self._shutdown)
+    signal.signal(signal.SIGINT, self._shutdown)
     self.slideshow.start()
     self.webServer.start()
 
