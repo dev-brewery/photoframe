@@ -32,6 +32,10 @@ class Immich(BaseService):
 
     def __init__(self, configDir, id, name):
         BaseService.__init__(self, configDir, id, name, needConfig=False, needOAuth=False, needImmichConfig=True)
+        # First call always returns thumbnail?size=preview so the slideshow
+        # starts visibly with a small/fast download. Subsequent calls escalate
+        # via dimension + memory + policy heuristics in getContentUrl().
+        self._settled = False
 
     # ------------------ Configuration ------------------
 
@@ -418,7 +422,7 @@ class Immich(BaseService):
 
         endpoint = 'thumbnail?size=preview'
 
-        if image.dimensions:
+        if self._settled and image.dimensions:
             width = image.dimensions.get('width', 0)
             height = image.dimensions.get('height', 0)
             if width > 0 and height > 0 and self._canProcessImage(width, height):
@@ -428,6 +432,7 @@ class Immich(BaseService):
                     endpoint = 'original'
                 else:
                     endpoint = 'thumbnail?size=fullsize'
+        self._settled = True
 
         return f"{config['server_url']}/api/assets/{asset_id}/{endpoint}"
 
