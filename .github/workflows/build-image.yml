@@ -41,6 +41,16 @@ jobs:
           sudo docker image prune -af || true
           df -h /
 
+      # Register qemu-user-static handlers in the host kernel's binfmt_misc
+      # so pi-gen's build.sh can execute the armhf rootfs binaries under
+      # emulation. pi-gen's in-container `dpkg-reconfigure qemu-user-static`
+      # does not reliably set up the handlers on stock ubuntu-latest; doing
+      # it here on the host is the standard Actions pattern.
+      - name: Register QEMU binfmt handlers (armhf/arm64)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm,arm64
+
       - name: Check out photoframe at tag
         uses: actions/checkout@v4
         with:
