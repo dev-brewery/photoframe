@@ -48,10 +48,15 @@ parser.add_argument('--port', default=7777, type=int, help="Port to listen on")
 parser.add_argument('--countdown', default=10, type=int, help="Set seconds to countdown before starting slideshow")
 parser.add_argument('--listen', default="0.0.0.0", help="Address to listen on")
 parser.add_argument('--debug', action='store_true', default=False, help='Enable loads more logging')
-parser.add_argument('--basedir', default=None, help='Change the root folder of photoframe')
+parser.add_argument('--basedir', default=None, help='Change the root folder of photoframe (overrides PHOTOFRAME_BASEDIR env var)')
 parser.add_argument('--emulate', action='store_true', help='Run as an app without root access or framebuffer')
 parser.add_argument('--size', default='1280x720', help='Set the resolution to be used when emulating the framebuffer')
 cmdline = parser.parse_args()
+
+# Allow PHOTOFRAME_BASEDIR env var as a fallback when --basedir is not given.
+# Useful for in-checkout dev workflow: PHOTOFRAME_BASEDIR=. python3 frame.py
+if cmdline.basedir is None:
+  cmdline.basedir = os.environ.get('PHOTOFRAME_BASEDIR')
 
 if cmdline.debug:
   logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
