@@ -1,0 +1,96 @@
+name: Build Photoframe LITE image
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Photoframe tag to build (e.g. v3.0.0-rc1). Tag must already exist.'
+        required: true
+        type: string
+      pi_gen_ref:
+        description: 'dev-brewery/pi-gen ref to build with'
+        required: false
+        type: string
+        default: bookworm-photoframe
+
+permissions:
+  contents: write
+
+jobs:
+  build-lite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PHOTOFRAME_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      PI_GEN_REF: ${{ github.event.inputs.pi_gen_ref || 'bookworm-photoframe' }}
+
+    steps:
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune -af || true
+          df -h /
+
+      - name: Check out photoframe at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PHOTOFRAME_TAG }}
+          path: photoframe
+
+      - name: Check out dev-brewery/pi-gen
+        uses: actions/checkout@v4
+        with:
+          repository: dev-brewery/pi-gen
+          ref: ${{ env.PI_GEN_REF }}
+          path: pi-gen
+
+      - name: Write pi-gen config
+        working-directory: pi-gen
+        run: |
+          cp config.example config
+          cat >> config <<EOF
+
+          # --- Injected by photoframe CI ---
+          # Use the checked-out tag as the source tree instead of cloning
+          # the branch referenced by PHOTOFRAME_BRANCH over the network.
+          PHOTOFRAME_SRC=${GITHUB_WORKSPACE}/photoframe
+          IMG_NAME='photoframe-${PHOTOFRAME_TAG}'
+          EOF
+          echo "--- final config ---"
+          cat config
+
+      - name: Build LITE image
+        working-directory: pi-gen
+        run: ./build-docker.sh lite
+
+      - name: Compress image
+        working-directory: pi-gen/deploy
+        run: |
+          ls -lah
+          for img in *.img; do
+            [ -e "$img" ] || continue
+            xz -9 -T0 -v "$img"
+          done
+          ls -lah
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: photoframe-image-${{ env.PHOTOFRAME_TAG }}
+          path: pi-gen/deploy/*.img.xz
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Attach .img.xz to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.PHOTOFRAME_TAG }}
+          prerelease: ${{ contains(env.PHOTOFRAME_TAG, '-rc') || contains(env.PHOTOFRAME_TAG, '-beta') || contains(env.PHOTOFRAME_TAG, '-alpha') }}
+          files: pi-gen/deploy/*.img.xz
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
