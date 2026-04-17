@@ -20,13 +20,15 @@ import logging
 from pathlib import Path
 
 class path:
-    # Default paths relative to basedir
-    CONFIGFOLDER  = Path('photoframe_config')
+    # Default paths match upstream mrworf/photoframe — runtime data lives at
+    # /root/* (siblings of the repo at /root/photoframe/), keeping the working
+    # tree clean. Use path.reassignBase('.') for in-repo dev workflow.
+    CONFIGFOLDER  = Path('/root/photoframe_config')
     CONFIGFILE    = CONFIGFOLDER / 'settings.json'
     COLORMATCH    = CONFIGFOLDER / 'colortemp.sh'
     OPTIONSFILE   = CONFIGFOLDER / 'options'
-    CACHEFOLDER   = Path('cache')
-    HISTORYFOLDER = Path('history')
+    CACHEFOLDER   = Path('/root/cache')
+    HISTORYFOLDER = Path('/root/history')
 
     DRV_BUILTIN   = Path('display-drivers')
     DRV_EXTERNAL  = CONFIGFOLDER / 'display-drivers'
