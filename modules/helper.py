@@ -236,13 +236,13 @@ class helper:
 				border = f'0x{width_border}'
 				spacing = f'0x{width_spacing}'
 				padding = ((displayHeight - adjHeight) / 2 - width_border)
-				resizeString = f'{adjWidth}x{adjHeight}^'
+				resizeString = f'{displayWidth}x{displayHeight}^'
 				logging.debug(f'Landscape image, reframing (padding required {padding}px)')
 			elif adjWidth < displayWidth:
 				border = f'{width_border}x0'
 				spacing = f'{width_spacing}x0'
 				padding = ((displayWidth - adjWidth) / 2 - width_border)
-				resizeString = f'^{adjWidth}x{adjHeight}'
+				resizeString = f'{displayWidth}x{displayHeight}^'
 				logging.debug(f'Portrait image, reframing (padding required {padding}px)')
 			else:
 				resizeString = f'{adjWidth}x{adjHeight}'
