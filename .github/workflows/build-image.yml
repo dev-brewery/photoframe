@@ -3,7 +3,9 @@ name: Build Photoframe LITE image
 on:
   push:
     tags:
-      - 'v*'
+      # Semver-shaped release tags only. Prevents ad-hoc v-prefixed tags
+      # (vtest, vexperiment) from firing a ~5-minute release build.
+      - 'v[0-9]*.[0-9]*.[0-9]*'
   workflow_dispatch:
     inputs:
       tag:
@@ -37,6 +39,36 @@ jobs:
       PI_GEN_REF: ${{ github.event.inputs.pi_gen_ref || github.ref_name }}
 
     steps:
+      # `required: true` on workflow_dispatch inputs rejects omission at
+      # the UI/CLI layer but accepts empty strings. Without this guard,
+      # `gh workflow run ... -f pi_gen_ref=""` falls through to the
+      # `|| github.ref_name` fallback on line 39 and silently builds
+      # against whatever branch the dispatch was triggered from.
+      - name: Validate dispatch inputs
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -z "${{ inputs.tag }}" ]; then
+            echo "::error::tag is required on workflow_dispatch — no default, no empty-string fallback"
+            exit 1
+          fi
+          if [ -z "${{ inputs.pi_gen_ref }}" ]; then
+            echo "::error::pi_gen_ref is required on workflow_dispatch — no default, no empty-string fallback"
+            exit 1
+          fi
+
+      # Fail fast if the paired pi-gen ref is missing. Without this,
+      # the error surfaces ~60s later at the pi-gen checkout step,
+      # after QEMU setup and photoframe checkout have run. `gh api
+      # commits/<ref>` accepts tags, branches, and SHAs.
+      - name: Verify pi-gen ref exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh api "repos/dev-brewery/pi-gen/commits/${PI_GEN_REF}" --silent 2>/dev/null; then
+            echo "::error::dev-brewery/pi-gen has no ref '${PI_GEN_REF}'. On tag push the pi-gen tag name mirrors the photoframe tag — cut the paired pi-gen tag first (see pi-gen's RELEASE.md)."
+            exit 1
+          fi
+
       - name: Free disk space on runner
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
@@ -90,8 +122,14 @@ jobs:
         working-directory: pi-gen/deploy
         run: ls -lah
 
-      # pi-gen's default DEPLOY_COMPRESSION=zip emits image_<IMG_NAME>-lite.zip.
-      # Pi Imager consumes .zip natively, so ship what pi-gen produces.
+      # pi-gen's default DEPLOY_COMPRESSION=zip emits
+      # image_YYYY-MM-DD-<IMG_NAME>-lite.zip (the build date is
+      # prepended automatically). Pi Imager consumes .zip natively —
+      # the archive holds a single YYYY-MM-DD-<IMG_NAME>-lite.img entry.
+      # Pi-gen uses two distinct variables that both start with the
+      # date: ARCHIVE_FILENAME='image_'+IMG_DATE+IMG_NAME for the outer
+      # zip and IMG_FILENAME=IMG_DATE+IMG_NAME for the inner .img.
+      # So ship what pi-gen produces.
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:

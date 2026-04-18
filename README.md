@@ -58,7 +58,7 @@ Default credentials: `photoframe` / `password` (change via `http-auth.json` in `
 
 Pre-built Raspberry Pi OS Lite images with photoframe preinstalled are attached to releases on the [photoframe releases page](https://github.com/dev-brewery/photoframe/releases). Flash, edit two files on the boot partition, boot, done. The image is built by the [`dev-brewery/pi-gen`](https://github.com/dev-brewery/pi-gen) fork (branch `bookworm-photoframe`) — see its [`HISTORY.md`](https://github.com/dev-brewery/pi-gen/blob/bookworm-photoframe/HISTORY.md) for how the image is produced if you want to rebuild from source.
 
-**Step 1 — flash the image.** Download the `.img.zip` from the releases page and flash with [Raspberry Pi Imager](https://www.raspberrypi.com/software/) (recommended), [Balena Etcher](https://etcher.balena.io/), [Rufus](https://rufus.ie/) in DD mode, or `dd` on Linux/Mac. In Raspberry Pi Imager, choose **"Use custom"** and point at the `.zip`.
+**Step 1 — flash the image.** Download the `image_*-lite.zip` asset from the releases page and flash with [Raspberry Pi Imager](https://www.raspberrypi.com/software/) (recommended), [Balena Etcher](https://etcher.balena.io/), [Rufus](https://rufus.ie/) in DD mode, or `dd` on Linux/Mac. In Raspberry Pi Imager, choose **"Use custom"** and point at the `.zip`.
 
 **Do not use Imager's gear icon / advanced settings** — those are greyed out for custom images, and the image already has its own mechanisms for every setting Imager would configure. Just flash it.
 
@@ -250,6 +250,16 @@ Run `frame.py` with `--emulate` to run without RPi hardware.
 ### How do I build my own SD card image?
 
 Check out the `bookworm-photoframe` branch on https://github.com/dev-brewery/pi-gen for the pi-gen configuration used to build release images. The [`build-image.yml`](.github/workflows/build-image.yml) workflow in this repo runs that same build in CI and attaches the resulting `.zip` to the release for the tag being built.
+
+Release builds fire automatically on `v[0-9]*.[0-9]*.[0-9]*` tag push and resolve the pi-gen ref from the photoframe tag name (pi-gen tag names mirror photoframe tag names 1:1). To rebuild an image manually:
+
+```
+gh workflow run build-image.yml \
+  -f tag=v3.0.0-rc1 \
+  -f pi_gen_ref=v3.0.0-rc1
+```
+
+Both inputs are required — there is no default. For a byte-for-byte rebuild of a released image, pass the same tag name for both. For testing an unreleased photoframe branch against a specific pi-gen commit, pass a branch or SHA for `pi_gen_ref`.
 
 ### USB sticks not recognized?
 
