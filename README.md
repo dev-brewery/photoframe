@@ -54,15 +54,63 @@ The installer handles all dependencies, service setup, and auto-update configura
 
 Default credentials: `photoframe` / `password` (change via `http-auth.json` in `/root/photoframe_config/`)
 
-### Option 2: SD card image
+### Option 2: SD card image (recommended for first-time users)
 
-Download from the [releases page](https://github.com/dev-brewery/photoframe/releases), flash to SD card with [Rufus](https://rufus.ie/), [Balena Etcher](https://etcher.balena.io/), or `dd`.
+Pre-built Raspberry Pi OS Lite images with photoframe preinstalled are attached to releases on the [photoframe releases page](https://github.com/dev-brewery/photoframe/releases). Flash, edit two files on the boot partition, boot, done. The image is built by the [`dev-brewery/pi-gen`](https://github.com/dev-brewery/pi-gen) fork (branch `bookworm-photoframe`) — see its [`HISTORY.md`](https://github.com/dev-brewery/pi-gen/blob/bookworm-photoframe/HISTORY.md) for how the image is produced if you want to rebuild from source.
 
-1. Flash image to SD card
-2. Edit `wifi-config.txt` on the `boot` partition with your WiFi credentials
-3. Boot the Pi and follow the on-screen instructions
+**Step 1 — flash the image.** Download the `.img.zip` from the releases page and flash with [Raspberry Pi Imager](https://www.raspberrypi.com/software/) (recommended), [Balena Etcher](https://etcher.balena.io/), [Rufus](https://rufus.ie/) in DD mode, or `dd` on Linux/Mac. In Raspberry Pi Imager, choose **"Use custom"** and point at the `.zip`.
 
-### Option 3: Migrate from mrworf/photoframe
+**Do not use Imager's gear icon / advanced settings** — those are greyed out for custom images, and the image already has its own mechanisms for every setting Imager would configure. Just flash it.
+
+**Step 2 — configure WiFi.** After Imager finishes, the SD card's `bootfs` partition is visible in Windows Explorer (or as `/Volumes/bootfs` on macOS, or auto-mounted on Linux). Open **`wifi-config.txt`** in a text editor that preserves Unix line endings (Notepad++, VS Code, `nano`, or `vim` — **not** regular Windows Notepad, which mangles line endings). Fill in your network:
+
+```ini
+[wifi]
+SSID=YourNetworkName
+PSK=YourPassword
+COUNTRY=US
+```
+
+Set `COUNTRY` to your ISO 3166-1 alpha-2 code (`GB`, `DE`, `CA`, `JP`, ...) if you're outside the US. Save the file. On first boot, the Pi reads this file, connects to your WiFi, and renames the file to `wifi-config.txt.applied` so you know it worked. If something goes wrong, a `wifi-config.txt.error` file appears with the reason.
+
+**Step 3 (optional) — force a custom display resolution.** Most HDMI monitors are auto-detected via EDID and need no configuration. If you're driving an atypical panel — e.g., an HDMI-to-LVDS adapter board feeding an old laptop LCD — edit **`cmdline.txt`** on the same `bootfs` partition and append the video mode to the single existing line (with a leading space, no newlines):
+
+```
+ video=HDMI-A-1:1366x768MR@60D
+```
+
+Replace `1366x768` with your panel's native resolution. Flag meanings: `M` = CVT timings, `R` = reduced blanking, `@60` = refresh rate, `D` = force DVI output and treat the port as connected even without HPD (needed for most HDMI-to-LVDS adapter boards, which don't assert HPD). On Bookworm's KMS driver, the legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` options in `config.txt` are silently ignored — `cmdline.txt` is the only file that works.
+
+**Step 4 — eject and boot.** Safely eject the SD card from your computer, insert it into the Pi, and power on. Within 30 seconds the photoframe service starts, WiFi associates, and the frame is reachable on your network at `http://<pi-ip>:7777`.
+
+**Step 5 — SSH in and change the password.** The image ships with a default account so you can manage the Pi without any setup:
+
+- **Username:** `photoframe`
+- **Password:** `photoframe`
+
+From any computer on the same network:
+
+```bash
+ssh photoframe@<pi-ip>
+passwd    # change the password immediately on first login
+```
+
+If you'd rather use a different username, create one and remove the default after logging in:
+
+```bash
+sudo adduser yourname
+sudo usermod -aG sudo yourname
+# log out, log back in as yourname, then:
+sudo deluser --remove-home photoframe
+```
+
+The default web UI credentials (separate from SSH) are `photoframe` / `password` — change them via `http-auth.json` in `/root/photoframe_config/` or through the web UI.
+
+### Option 3: Manual install
+
+See [MANUAL.md](MANUAL.md) for a step-by-step walkthrough that mirrors what `install.sh` does, for users who want to understand every step or reproduce it on a system where the scripted path doesn't fit.
+
+### Option 4: Migrate from mrworf/photoframe
 
 If you're running the original mrworf version, see [MIGRATION.md](MIGRATION.md) for step-by-step instructions to switch to this fork.
 
@@ -117,14 +165,81 @@ Photoframe listens on GPIO 26 (configurable) for power control. Connect a moment
 
 ### How do I get SSH access?
 
-Place a file called `ssh` on the boot partition. Login with the default Raspberry Pi OS credentials. Avoid modifying files in `/root/photoframe/` directly, as this will prevent automatic updates via `update.sh`.
+It depends on which install path you used.
+
+**If you flashed the SD card image (Option 2):** SSH is enabled out of the box and the image ships with a default account so you can get in from any OS (Windows, macOS, Linux) without extra setup:
+
+- **Username:** `photoframe`
+- **Password:** `photoframe`
+
+```bash
+ssh photoframe@<your-pi-ip>
+```
+
+**Change the password immediately on first login:**
+
+```bash
+passwd
+```
+
+If you'd rather use a different username, create one and remove the default after logging in:
+
+```bash
+sudo adduser yourname
+sudo usermod -aG sudo yourname
+# log out, log back in as yourname, then:
+sudo deluser --remove-home photoframe
+```
+
+**If you installed via `install.sh` on a fresh Raspberry Pi OS (Option 1):** SSH and user accounts are whatever you configured when flashing Raspberry Pi OS itself. If you used Raspberry Pi Imager's advanced settings (gear icon) to set a username, password, and enable SSH, you're already set — just `ssh <youruser>@<your-pi-ip>`. Otherwise, enable SSH on the Pi with `sudo raspi-config` (Interfaces → SSH), or place an empty file named `ssh` on the boot partition before first boot.
+
+Avoid modifying files in `/root/photoframe/` directly, as this will prevent automatic updates via `update.sh`.
+
+### My display shows nothing or the wrong resolution
+
+Most HDMI monitors are auto-detected via EDID. If you're driving an atypical panel (e.g. an HDMI-to-LVDS adapter board feeding a laptop LCD) that doesn't report EDID, you'll need to force the mode manually. The right place to do this depends on which Raspberry Pi OS release you're on, because Bookworm and Bullseye use different display stacks.
+
+**On Bookworm (KMS driver):** custom modes go on the kernel command line, not in `config.txt`. Legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` / `hdmi_force_hotplug` settings in `config.txt` are silently ignored under the `vc4-kms-v3d` driver.
+
+```bash
+sudo nano /boot/firmware/cmdline.txt
+```
+
+`cmdline.txt` is a single line — do not add newlines. Append (with a leading space):
+
+```
+video=HDMI-A-1:1366x768MR@60D
+```
+
+Replace `1366x768` with your panel's native resolution. Flag meanings: `M` = CVT timings, `R` = reduced blanking, `@60` = refresh rate, `D` = force DVI-style output and treat the port as connected even without HPD (required because most adapter boards don't assert HPD). Reboot to apply.
+
+**On Bullseye (legacy firmware display path):** the traditional `config.txt` knobs still work.
+
+```bash
+sudo nano /boot/config.txt
+```
+
+Add:
+
+```
+hdmi_force_hotplug=1
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=1366 768 60 3 0 0 1
+```
+
+Replace `1366 768` with your panel's native resolution. `hdmi_mode=87` is the "use custom CVT" slot that activates `hdmi_cvt`; `hdmi_force_hotplug=1` is required because most driver boards don't assert HPD. Reboot to apply.
 
 ### Are there logs?
 
-Logs are in `/var/log/syslog` (search for `frame` or `photoframe` entries). For verbose debug output:
+On Bookworm: `journalctl -u frame.service -f` (or the in-UI log viewer under **Settings**, which falls back to `journalctl` automatically when `/var/log/syslog` is absent — Bookworm Lite doesn't ship `rsyslog`).
+
+On older releases that still have `rsyslog`: `/var/log/syslog` works too (search for `frame` or `photoframe`).
+
+For verbose debug output:
 
 ```bash
-service frame stop
+sudo systemctl stop frame.service
 /root/photoframe/frame.py --debug
 ```
 
@@ -134,7 +249,7 @@ Run `frame.py` with `--emulate` to run without RPi hardware.
 
 ### How do I build my own SD card image?
 
-Check out the `photoframe` branch on https://github.com/dev-brewery/pi-gen for the pi-gen configuration used to build release images.
+Check out the `bookworm-photoframe` branch on https://github.com/dev-brewery/pi-gen for the pi-gen configuration used to build release images. The [`build-image.yml`](.github/workflows/build-image.yml) workflow in this repo runs that same build in CI and attaches the resulting `.zip` to the release for the tag being built.
 
 ### USB sticks not recognized?
 
