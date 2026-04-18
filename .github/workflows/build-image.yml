@@ -83,30 +83,28 @@ jobs:
         working-directory: pi-gen
         run: ./build-docker.sh lite
 
-      - name: Compress image
+      - name: List deploy output
         working-directory: pi-gen/deploy
-        run: |
-          ls -lah
-          for img in *.img; do
-            [ -e "$img" ] || continue
-            xz -9 -T0 -v "$img"
-          done
-          ls -lah
+        run: ls -lah
 
+      # pi-gen's default DEPLOY_COMPRESSION=zip emits image_<IMG_NAME>-lite.zip.
+      # Pi Imager consumes .zip natively, so ship what pi-gen produces.
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: photoframe-image-${{ env.PHOTOFRAME_TAG }}
-          path: pi-gen/deploy/*.img.xz
+          path: pi-gen/deploy/image_*.zip
           retention-days: 14
           if-no-files-found: error
 
-      - name: Attach .img.xz to release
+      - name: Attach image to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.PHOTOFRAME_TAG }}
           prerelease: ${{ contains(env.PHOTOFRAME_TAG, '-rc') || contains(env.PHOTOFRAME_TAG, '-beta') || contains(env.PHOTOFRAME_TAG, '-alpha') }}
-          files: pi-gen/deploy/*.img.xz
+          files: |
+            pi-gen/deploy/image_*.zip
+            pi-gen/deploy/*.info
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
