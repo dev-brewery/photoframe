@@ -6,14 +6,14 @@ Every photoframe release is paired 1:1 with a [`dev-brewery/pi-gen`](https://git
 
 **Pi-gen tag first, photoframe tag second.**
 
-`.github/workflows/build-image.yml` resolves `PI_GEN_REF` from `github.ref_name` on `push: tags: v*`. If the matching pi-gen tag is missing when the photoframe tag is pushed, the workflow fails fast at the pi-gen checkout step. That's the forcing function — don't route around it.
+`.github/workflows/build-image.yml` resolves `PI_GEN_REF` from `github.ref_name` on `push: tags: v[0-9]*.[0-9]*.[0-9]*`. If the matching pi-gen tag is missing when the photoframe tag is pushed, the workflow fails fast at the `Verify pi-gen ref exists` pre-flight step — before QEMU setup or any checkout runs. That's the forcing function — don't route around it.
 
 ## Per-release steps (photoframe side)
 
 For each release `vX.Y.Z[-rcN]`:
 
 1. Land all in-scope work on `dev`.
-2. Cut the paired pi-gen tag first — follow pi-gen's RELEASE.md. That step also bumps `config.example`'s `PHOTOFRAME_BRANCH` to the new photoframe tag name, so a manual `git clone --branch <tag> pi-gen && ./build-docker.sh` reproduces this release's image without overrides. The bump and tag must happen in the same commit: a pi-gen tag whose `config.example` still names the previous release breaks reproducibility.
+2. Cut the paired pi-gen tag first — follow pi-gen's RELEASE.md. That step also bumps `config.example`'s `PHOTOFRAME_BRANCH` to the new photoframe tag name, so a manual `git clone --branch <tag> pi-gen && ./build-docker.sh` reproduces this release's image without overrides. The bump and tag must happen in the same commit: a pi-gen tag whose `config.example` still names the previous release breaks reproducibility **and corrupts CI builds too** — pi-gen's `stage2/04-photoframe/01-run.sh` runs `git checkout ${PHOTOFRAME_BRANCH}` inside the rootfs even when CI passes `PHOTOFRAME_SRC`, so a stale `PHOTOFRAME_BRANCH` in `config.example` either fails the checkout or silently ships the wrong commit.
 3. Tag photoframe at the `dev` commit being released:
    ```bash
    git tag -a vX.Y.Z -m 'release vX.Y.Z' dev
