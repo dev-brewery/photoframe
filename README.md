@@ -251,7 +251,7 @@ Run `frame.py` with `--emulate` to run without RPi hardware.
 
 Check out the `bookworm-photoframe` branch on https://github.com/dev-brewery/pi-gen for the pi-gen configuration used to build release images. The [`build-image.yml`](.github/workflows/build-image.yml) workflow in this repo runs that same build in CI and attaches the resulting `.zip` to the release for the tag being built.
 
-Release builds fire automatically on `v*.*.*` tag push and resolve the pi-gen ref from the photoframe tag name (pi-gen tag names mirror photoframe tag names 1:1). To rebuild an image manually:
+Release builds fire automatically on `v[0-9]*.[0-9]*.[0-9]*` tag push and resolve the pi-gen ref from the photoframe tag name (pi-gen tag names mirror photoframe tag names 1:1). To rebuild an image manually:
 
 ```
 gh workflow run build-image.yml \
