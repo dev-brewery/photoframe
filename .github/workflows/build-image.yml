@@ -42,7 +42,7 @@ jobs:
       # `required: true` on workflow_dispatch inputs rejects omission at
       # the UI/CLI layer but accepts empty strings. Without this guard,
       # `gh workflow run ... -f pi_gen_ref=""` falls through to the
-      # `|| github.ref_name` fallback on line 37 and silently builds
+      # `|| github.ref_name` fallback on line 39 and silently builds
       # against whatever branch the dispatch was triggered from.
       - name: Validate dispatch inputs
         if: github.event_name == 'workflow_dispatch'
