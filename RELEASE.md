@@ -22,7 +22,7 @@ For each release `vX.Y.Z[-rcN]`:
    git push origin vX.Y.Z
    ```
 4. Tag push fires `build-image.yml`, which checks out pi-gen at the matching tag, builds the LITE image, and attaches it to the auto-created GitHub release.
-5. Verify the release page has the `image_photoframe-vX.Y.Z-lite.zip` artifact before announcing.
+5. Verify the release page has the `image_YYYY-MM-DD-photoframe-vX.Y.Z-lite.zip` artifact before announcing (pi-gen prepends the build date to `IMG_NAME`, so the filename includes the date the runner produced it).
 
 ## Manual dispatch
 

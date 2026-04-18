@@ -122,8 +122,11 @@ jobs:
         working-directory: pi-gen/deploy
         run: ls -lah
 
-      # pi-gen's default DEPLOY_COMPRESSION=zip emits image_<IMG_NAME>-lite.zip.
-      # Pi Imager consumes .zip natively, so ship what pi-gen produces.
+      # pi-gen's default DEPLOY_COMPRESSION=zip emits
+      # image_YYYY-MM-DD-<IMG_NAME>-lite.zip (the build date is
+      # prepended automatically). Pi Imager consumes .zip natively —
+      # the archive holds a single <IMG_NAME>-lite.img entry — so ship
+      # what pi-gen produces.
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
