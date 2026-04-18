@@ -251,6 +251,16 @@ Run `frame.py` with `--emulate` to run without RPi hardware.
 
 Check out the `bookworm-photoframe` branch on https://github.com/dev-brewery/pi-gen for the pi-gen configuration used to build release images. The [`build-image.yml`](.github/workflows/build-image.yml) workflow in this repo runs that same build in CI and attaches the resulting `.zip` to the release for the tag being built.
 
+Release builds fire automatically on `v*.*.*` tag push and resolve the pi-gen ref from the photoframe tag name (pi-gen tag names mirror photoframe tag names 1:1). To rebuild an image manually:
+
+```
+gh workflow run build-image.yml \
+  -f tag=v3.0.0-rc1 \
+  -f pi_gen_ref=v3.0.0-rc1
+```
+
+Both inputs are required — there is no default. For a byte-for-byte rebuild of a released image, pass the same tag name for both. For testing an unreleased photoframe branch against a specific pi-gen commit, pass a branch or SHA for `pi_gen_ref`.
+
 ### USB sticks not recognized?
 
 Install exFAT support: `sudo apt install exfat-fuse exfat-utils`
