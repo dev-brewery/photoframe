@@ -72,10 +72,14 @@ if [ "$1" = "post" ]; then
 
 	# Make sure all old files are moved into the new config folder
 	mkdir /root/photoframe_config >/dev/null 2>/dev/null
-	FILES="oauth.json settings.json http_auth.json colortemp.sh"
+	FILES="oauth.json settings.json http-auth.json colortemp.sh"
 	for FILE in ${FILES}; do
 		mv /root/${FILE} /root/photoframe_config/ >/dev/null 2>/dev/null
 	done
+	# Legacy underscore name: very old upstream installs used
+	# /root/http_auth.json. The runtime now reads http-auth.json
+	# (modules/sysconfig.py:146), so migrate the location AND the name.
+	mv /root/http_auth.json /root/photoframe_config/http-auth.json >/dev/null 2>/dev/null
 
 	# We also have added more dependencies, so add more software
 	apt-get update
