@@ -11,10 +11,9 @@ on:
         required: true
         type: string
       pi_gen_ref:
-        description: 'dev-brewery/pi-gen ref to build with'
-        required: false
+        description: 'dev-brewery/pi-gen ref (required — e.g. v3.0.0-rc1 for a reproducible build, or a branch/SHA for testing)'
+        required: true
         type: string
-        default: bookworm-photoframe
 
 permissions:
   contents: write
@@ -31,7 +30,11 @@ jobs:
     timeout-minutes: 180
     env:
       PHOTOFRAME_TAG: ${{ github.event.inputs.tag || github.ref_name }}
-      PI_GEN_REF: ${{ github.event.inputs.pi_gen_ref || 'bookworm-photoframe' }}
+      # On tag push, pi-gen is checked out at the matching tag (pi-gen
+      # tag names mirror photoframe tag names — see dev-brewery/pi-gen's
+      # RELEASE.md). On workflow_dispatch, the user supplies pi_gen_ref
+      # explicitly; no silent fallback to a branch.
+      PI_GEN_REF: ${{ github.event.inputs.pi_gen_ref || github.ref_name }}
 
     steps:
       - name: Free disk space on runner
