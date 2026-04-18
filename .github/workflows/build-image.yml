@@ -125,9 +125,11 @@ jobs:
       # pi-gen's default DEPLOY_COMPRESSION=zip emits
       # image_YYYY-MM-DD-<IMG_NAME>-lite.zip (the build date is
       # prepended automatically). Pi Imager consumes .zip natively —
-      # the archive holds a single YYYY-MM-DD-<IMG_NAME>-lite.img entry
-      # (pi-gen's IMG_FILENAME = IMG_DATE + IMG_NAME, used for both the
-      # outer zip and the inner .img) — so ship what pi-gen produces.
+      # the archive holds a single YYYY-MM-DD-<IMG_NAME>-lite.img entry.
+      # Pi-gen uses two distinct variables that both start with the
+      # date: ARCHIVE_FILENAME='image_'+IMG_DATE+IMG_NAME for the outer
+      # zip and IMG_FILENAME=IMG_DATE+IMG_NAME for the inner .img.
+      # So ship what pi-gen produces.
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
