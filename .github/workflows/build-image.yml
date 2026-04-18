@@ -47,6 +47,10 @@ jobs:
       - name: Validate dispatch inputs
         if: github.event_name == 'workflow_dispatch'
         run: |
+          if [ -z "${{ inputs.tag }}" ]; then
+            echo "::error::tag is required on workflow_dispatch — no default, no empty-string fallback"
+            exit 1
+          fi
           if [ -z "${{ inputs.pi_gen_ref }}" ]; then
             echo "::error::pi_gen_ref is required on workflow_dispatch — no default, no empty-string fallback"
             exit 1
