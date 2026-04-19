@@ -19,12 +19,21 @@
 from .baseroute import BaseRoute
 
 class RouteControl(BaseRoute):
-  def setupex(self, slideshow):
+  def setupex(self, slideshow, displayMgr):
     self.slideshow = slideshow
+    self.displayMgr = displayMgr
 
     self.addUrl('/control/<cmd>')
 
   def handle(self, app, cmd):
+    # Screen on/off endpoints for home automation integration
+    if cmd == 'screenon':
+      self.displayMgr.enable(True)
+      return self.jsonify({'screen': 'on', 'success': True})
+    elif cmd == 'screenoff':
+      self.displayMgr.enable(False)
+      return self.jsonify({'screen': 'off', 'success': True})
+
     self.slideshow.createEvent(cmd)
     return self.jsonify({'control': True})
 

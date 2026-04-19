@@ -156,6 +156,30 @@ are `photoframe` / `password` (change via `http-auth.json` in
 `/root/photoframe_config/`). Choose your photo service (Immich is the
 supported default; Google Photos is deprecated) and follow the prompts.
 
+# http api
+
+The photoframe exposes HTTP endpoints for integration with home automation
+systems (Home Assistant, Domoticz, etc.). All endpoints require HTTP Basic
+Auth using the same credentials as the web UI.
+
+## screen control
+
+Turn the display on or off remotely:
+
+```bash
+# Turn screen off
+curl -u photoframe:password http://<pi-ip>:7777/control/screenoff
+
+# Turn screen on
+curl -u photoframe:password http://<pi-ip>:7777/control/screenon
+```
+
+Both endpoints return JSON: `{"screen": "on", "success": true}` or
+`{"screen": "off", "success": true}`.
+
+Note: A scheduled power-saving tick may override manual screen state.
+For persistent control, adjust the schedule in the web UI.
+
 # wifi setup
 
 **Bookworm uses NetworkManager** for all network configuration. The

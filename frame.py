@@ -147,7 +147,7 @@ class Photoframe:
     self._loadRoute('configupload', 'RouteConfigUpload', self.serviceMgr, self.slideshow)
     self._loadRoute('immichconfigupload', 'RouteImmichConfigUpload', self.serviceMgr, self.slideshow)
     self._loadRoute('service', 'RouteService', self.serviceMgr, self.slideshow)
-    self._loadRoute('control', 'RouteControl', self.slideshow)
+    self._loadRoute('control', 'RouteControl', self.slideshow, self.displayMgr)
     self._loadRoute('events', 'RouteEvents', self.eventMgr)
     self._loadRoute('debug', 'RouteDebug', self.displayMgr)
 
