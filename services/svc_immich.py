@@ -126,6 +126,9 @@ class Immich(BaseService):
     def hasKeywordDetails(self):
         return True
 
+    def hasAlbumPicker(self):
+        return True
+
     def removeKeywords(self, index):
         keys = self.getKeywords()
         if index < 0 or index >= len(keys):

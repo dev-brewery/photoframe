@@ -320,6 +320,22 @@ class ServiceManager:
       return None
     return svc.helpKeywords()
 
+  def getServiceAlbums(self, service):
+    """Fetch available albums from a service for interactive selection.
+
+    Returns album list if the service supports discovery (hasAlbumPicker + discoverAlbums).
+    Extensible: any service implementing discoverAlbums() can provide album browsing.
+    Currently: Immich.
+    """
+    if service not in self._SERVICES:
+      return {'success': False, 'error': 'Service not found'}
+    svc = self._SERVICES[service]['service']
+    if not svc.hasAlbumPicker():
+      return {'success': False, 'error': 'Service does not support album browsing'}
+    if hasattr(svc, 'discoverAlbums'):
+      return svc.discoverAlbums()
+    return {'success': False, 'error': 'Album discovery not implemented'}
+
   def getServiceState(self, id):
     if id not in self._SERVICES:
       return None
@@ -405,6 +421,7 @@ class ServiceManager:
         'useKeywords' : svc['service'].needKeywords(),
         'hasSourceUrl' : svc['service'].hasKeywordSourceUrl(),
         'hasDetails' : svc['service'].hasKeywordDetails(),
+        'hasAlbumPicker' : svc['service'].hasAlbumPicker(),  # Album browse UI (Immich, extensible)
         'messages' : svc['service'].getMessages(),
         'immichConfigType' : immichConfigType,  # NEW FIELD
       })

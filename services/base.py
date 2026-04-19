@@ -415,6 +415,15 @@ class BaseService:
     # Override to provide source url support
     return False
 
+  def hasAlbumPicker(self):
+    """Enable interactive album/folder selection in the UI.
+
+    Override to return True if this service supports browsing albums.
+    Requires implementing discoverAlbums() to return available albums.
+    Currently implemented by: Immich
+    """
+    return False
+
   def removeKeywords(self, index):
     if index < 0 or index > (len(self._STATE['_KEYWORDS'])-1):
       logging.error(f'removeKeywords: Out of range {index}')
