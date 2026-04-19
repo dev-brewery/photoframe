@@ -424,6 +424,15 @@ class BaseService:
     """
     return False
 
+  def hasPrioritization(self):
+    """Enable image prioritization UI (sort/filter options).
+
+    Override to return True if this service supports prioritization modes.
+    Requires implementing getPrioritization(), setPrioritization(), getPrioritizationModes().
+    Currently implemented by: Immich
+    """
+    return False
+
   def removeKeywords(self, index):
     if index < 0 or index > (len(self._STATE['_KEYWORDS'])-1):
       logging.error(f'removeKeywords: Out of range {index}')

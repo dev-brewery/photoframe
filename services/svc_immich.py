@@ -129,6 +129,64 @@ class Immich(BaseService):
     def hasAlbumPicker(self):
         return True
 
+    # ------------------ Prioritization ------------------
+
+    PRIORITIZATION_MODES = {
+        'none': 'No prioritization (default)',
+        'recent_added': 'Recently added to Immich',
+        'recent_taken': 'Recently taken (by date)',
+        'favorites_only': 'Favorites only',
+        'favorites_first': 'Favorites first, then others'
+    }
+
+    def hasPrioritization(self):
+        return True
+
+    def getPrioritization(self):
+        return self._STATE.get('_PRIORITIZATION', 'none')
+
+    def setPrioritization(self, mode):
+        if mode not in self.PRIORITIZATION_MODES:
+            return False
+        self._STATE['_PRIORITIZATION'] = mode
+        self.saveState()
+        return True
+
+    def getPrioritizationModes(self):
+        return self.PRIORITIZATION_MODES
+
+    def _applyPrioritization(self, assets):
+        mode = self.getPrioritization()
+        if mode == 'none' or not assets:
+            return assets
+
+        if mode == 'favorites_only':
+            filtered = [a for a in assets if a.get('isFavorite', False)]
+            if filtered:
+                logging.info(f'Prioritization: filtered to {len(filtered)} favorites from {len(assets)} assets')
+                return filtered
+            logging.warning('Prioritization: no favorites found, returning all assets')
+            return assets
+
+        if mode == 'favorites_first':
+            favorites = [a for a in assets if a.get('isFavorite', False)]
+            others = [a for a in assets if not a.get('isFavorite', False)]
+            result = favorites + others
+            logging.info(f'Prioritization: {len(favorites)} favorites first, then {len(others)} others')
+            return result
+
+        if mode == 'recent_added':
+            sorted_assets = sorted(assets, key=lambda a: a.get('createdAt', ''), reverse=True)
+            logging.info(f'Prioritization: sorted {len(sorted_assets)} assets by createdAt (recent first)')
+            return sorted_assets
+
+        if mode == 'recent_taken':
+            sorted_assets = sorted(assets, key=lambda a: a.get('fileCreatedAt', '') or a.get('createdAt', ''), reverse=True)
+            logging.info(f'Prioritization: sorted {len(sorted_assets)} assets by fileCreatedAt (recent first)')
+            return sorted_assets
+
+        return assets
+
     def removeKeywords(self, index):
         keys = self.getKeywords()
         if index < 0 or index >= len(keys):
@@ -366,6 +424,9 @@ class Immich(BaseService):
                 return []
 
             logging.info(f'Retrieved {len(assets)} assets from album "{keyword}"')
+
+            # Apply prioritization (sorting/filtering based on user preference)
+            assets = self._applyPrioritization(assets)
 
         except Exception as e:
             logging.error(f'Failed to get images for keyword "{keyword}": {e}')
