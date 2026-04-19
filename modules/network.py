@@ -76,3 +76,42 @@ class RequestInvalidToken(Exception):
 
 class RequestExpiredToken(Exception):
     pass
+
+class RequestTerminalError(Exception):
+    """Non-retryable error (bad credentials, not found, etc.)"""
+    pass
+
+
+class RetryConfig:
+    """Exponential backoff configuration for network requests."""
+
+    # HTTP codes that should not be retried
+    TERMINAL_CODES = {401, 403, 404, 410, 422}
+
+    # HTTP codes that indicate transient failures
+    TRANSIENT_CODES = {408, 429, 500, 502, 503, 504}
+
+    def __init__(self, max_retries=6, base_delay=5, max_delay=60, jitter=0.25):
+        self.max_retries = max_retries
+        self.base_delay = base_delay
+        self.max_delay = max_delay
+        self.jitter = jitter
+
+    def get_delay(self, attempt):
+        """Calculate delay for given attempt (0-indexed) with exponential backoff."""
+        import random
+        delay = min(self.base_delay * (2 ** attempt), self.max_delay)
+        if self.jitter > 0:
+            jitter_range = delay * self.jitter
+            delay += random.uniform(-jitter_range, jitter_range)
+        return max(0, delay)
+
+    @classmethod
+    def is_terminal_code(cls, status_code):
+        """Return True if this HTTP code should not be retried."""
+        return status_code in cls.TERMINAL_CODES
+
+    @classmethod
+    def is_transient_code(cls, status_code):
+        """Return True if this HTTP code indicates a transient failure."""
+        return status_code in cls.TRANSIENT_CODES
