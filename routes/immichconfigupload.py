@@ -33,42 +33,51 @@ class RouteImmichConfigUpload(BaseRoute):
             return self.setAbort(400)
 
         if self.getRequest().method == 'POST':
-            # Handle Immich config file upload
-            if 'filename' not in self.getRequest().files:
-                logging.error('No file part in Immich config upload')
-                return self.setAbort(405)
-            
-            file = self.getRequest().files['filename']
-            if file.filename == '':
-                logging.error('No file selected for Immich config upload')
-                return self.setAbort(405)
+            # Handle Immich config - either JSON body or file upload
+            content_type = self.getRequest().content_type or ''
+            data = None
+
+            if 'application/json' in content_type:
+                # Direct JSON POST from inline form
+                try:
+                    data = self.getRequest().get_json()
+                    if not data:
+                        logging.error('Empty JSON body in Immich config POST')
+                        return 'Empty JSON body', 400
+                except Exception as e:
+                    logging.error(f'Failed to parse JSON body: {e}')
+                    return 'Invalid JSON in request body', 400
+            elif 'filename' in self.getRequest().files:
+                # File upload path (existing behavior)
+                file = self.getRequest().files['filename']
+                if file.filename == '':
+                    logging.error('No file selected for Immich config upload')
+                    return 'No file selected', 400
+                try:
+                    data = json.load(file)
+                except json.JSONDecodeError as e:
+                    logging.error(f'Invalid JSON in Immich config file: {e}')
+                    return 'Invalid JSON format in Immich configuration file', 400
+            else:
+                logging.error('No JSON body or file in Immich config upload')
+                return 'Provide JSON body or file upload', 400
 
             try:
-                # Parse JSON config data
-                data = json.load(file)
                 logging.info(f'Immich config upload for service {service}: {len(str(data))} bytes')
-                
-                # Validate Immich configuration first
-                validation_error = self.servicemgr.validateImmichServiceConfiguration(service, data)
-                if validation_error and validation_error is not True:
-                    logging.error(f'Immich config validation failed: {validation_error}')
-                    return f'Immich configuration is invalid: {validation_error}', 400
 
-                # Use Immich-specific service manager method to set configuration
+                # Validate first to get detailed error messages
+                validation_result = self.servicemgr.validateImmichServiceConfiguration(service, data)
+                if validation_result is not True and validation_result is not None:
+                    logging.error(f'Immich config validation failed: {validation_result}')
+                    return f'Immich configuration is invalid: {validation_result}', 400
+
+                # Set configuration (also validates internally, but we already checked)
                 if self.servicemgr.setImmichServiceConfiguration(service, data):
-                    # Trigger slideshow refresh if service state changed
-                    old_ready = self.servicemgr.hasReadyServices()
-                    new_ready = self.servicemgr.hasReadyServices()
-                    if old_ready != new_ready:
-                        self.slideshow.trigger()
-                    
+                    self.slideshow.trigger()
                     return 'Immich configuration uploaded successfully', 200
                 else:
-                    return 'Immich configuration was invalid or could not be set', 400
-                    
-            except json.JSONDecodeError as e:
-                logging.error(f'Invalid JSON in Immich config file: {e}')
-                return 'Invalid JSON format in Immich configuration file', 405
+                    return 'Service does not support Immich configuration', 400
+
             except Exception as e:
                 logging.error(f'Error processing Immich config upload: {e}')
                 return 'Error processing Immich configuration file', 500
@@ -82,7 +91,7 @@ class RouteImmichConfigUpload(BaseRoute):
                     return 'No Immich configuration found for this service', 404
                 
                 logging.info(f'Retrieved Immich config for service {service}')
-                return config, 200
+                return self.jsonify(config)
                 
             except Exception as e:
                 logging.error(f'Error retrieving Immich config for service {service}: {e}')
