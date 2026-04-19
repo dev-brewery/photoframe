@@ -79,7 +79,10 @@ class RouteSettings(BaseRoute):
         self.timekeeper.setPowermode(self.settingsMgr.getUser('powersave'))
       if key in ['shutdown-pin']:
         self.powermanagement.stopmonitor()
-        self.powermanagement = shutdown(self.settingsMgr.getUser('shutdown-pin'))
+        pin = self.settingsMgr.getUser('shutdown-pin')
+        if pin == 'auto':
+          pin = shutdown.detect_default_pin()
+        self.powermanagement = shutdown(pin)
       if key in ['imagesizing', 'randomize_images']:
         self.slideshow.createEvent("settingsChange")
       self.settingsMgr.save()

@@ -50,7 +50,7 @@ class settings:
       'autooff-lux' : 0.01,
       'autooff-time' : 0,
       'powersave' : '',
-      'shutdown-pin' : 3,
+      'shutdown-pin' : 'auto',
       'display-driver' : 'none',
       'display-special' : None,
       'imagesizing' : 'blur',
