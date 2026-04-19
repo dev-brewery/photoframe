@@ -19,12 +19,20 @@
 from .baseroute import BaseRoute
 
 class RouteControl(BaseRoute):
-  def setupex(self, slideshow):
+  def setupex(self, slideshow, timekeeper):
     self.slideshow = slideshow
+    self.timekeeper = timekeeper
 
     self.addUrl('/control/<cmd>')
 
   def handle(self, app, cmd):
+    if cmd == 'screenon':
+      self.timekeeper.setManualPower(True)
+      return self.jsonify({'screen': 'on', 'success': True})
+    elif cmd == 'screenoff':
+      self.timekeeper.setManualPower(False)
+      return self.jsonify({'screen': 'off', 'success': True})
+
     self.slideshow.createEvent(cmd)
     return self.jsonify({'control': True})
 
