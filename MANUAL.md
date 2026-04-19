@@ -304,7 +304,13 @@ Start `frame.py` with `--emulate` to run without an RPi. The emulator
 mode is useful for iterating on the web UI and photo-service code
 without needing to reflash a card every time.
 
-## HTTP API for display control
+# HTTP API
+
+Photoframe exposes HTTP endpoints for automation and scripting. All
+endpoints require HTTP Basic authentication with the credentials from
+`/root/photoframe_config/http-auth.json`.
+
+## Display control
 
 The display can be turned on and off via HTTP, useful for home
 automation integration (Home Assistant, Domoticz, etc.):
@@ -317,12 +323,35 @@ curl -u photoframe:password http://<pi-ip>:7777/control/screenoff
 curl -u photoframe:password http://<pi-ip>:7777/control/screenon
 ```
 
-These endpoints respect the HTTP authentication configured in
-`/root/photoframe_config/http-auth.json`. Both return JSON:
-`{"screen": "on", "success": true}` or `{"screen": "off", "success": true}`.
+Both return JSON: `{"screen": "on", "success": true}` or
+`{"screen": "off", "success": true}`.
 
 **Note:** This is API groundwork for a future persistent manual override
 feature. Currently, schedule and ambient light sensor rules continue to
 run and may revert the display state on the next evaluation cycle (up to
 60 seconds). A future release will add the ability to hold a manual
 override until explicitly cleared.
+
+## Configuration backup and restore
+
+Export your entire configuration to a `.tar.gz` file:
+
+```bash
+curl -u photoframe:password \
+    http://<pi-ip>:7777/backup/export \
+    -o photoframe-config-backup.tar.gz
+```
+
+Restore configuration from a backup file:
+
+```bash
+curl -u photoframe:password \
+    -F "filename=@photoframe-config-backup.tar.gz" \
+    http://<pi-ip>:7777/backup/import
+```
+
+The import endpoint validates the backup before restoring:
+- Rejects archives containing path traversal (`..` or absolute paths)
+- Requires a `settings.json` file in the archive
+- Creates a `.bak` copy of the current config before overwriting
+- Stops the slideshow during restore and restarts it after
