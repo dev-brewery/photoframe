@@ -214,15 +214,31 @@ class Immich(BaseService):
         if not albums:
             return {'error': 'No albums found on Immich server', 'keywords': keywords}
 
-        matching_albums = [a for a in albums if (a.get('albumName') or a.get('name', '')).lower() == keywords.lower()]
-        if len(matching_albums) == 0:
-            available_names = [a.get('albumName', a.get('name', 'Unknown')) for a in albums[:10]]
-            available_list = ', '.join(available_names)
-            if len(albums) > 10:
-                available_list += f', ... and {len(albums) - 10} more'
-            return {'error': f'No album found with name "{keywords}". Available albums: {available_list}', 'keywords': keywords}
+        # Try exact-case match first
+        exact_matches = [a for a in albums if (a.get('albumName') or a.get('name', '')) == keywords]
+        if exact_matches:
+            matched_album = exact_matches[0]
+        else:
+            # Fall back to case-insensitive match
+            keywords_lower = keywords.lower()
+            case_fold_matches = [a for a in albums if (a.get('albumName') or a.get('name', '')).lower() == keywords_lower]
 
-        matched_album = matching_albums[0]
+            if not case_fold_matches:
+                available_names = [a.get('albumName', a.get('name', 'Unknown')) for a in albums[:10]]
+                available_list = ', '.join(available_names)
+                if len(albums) > 10:
+                    available_list += f', ... and {len(albums) - 10} more'
+                return {'error': f'No album found with name "{keywords}". Available albums: {available_list}', 'keywords': keywords}
+
+            matched_album = case_fold_matches[0]
+            actual_name = matched_album.get('albumName') or matched_album.get('name', '')
+
+            if len(case_fold_matches) > 1:
+                # Multiple case-fold matches - log warning with all matches
+                match_names = [a.get('albumName') or a.get('name', '') for a in case_fold_matches]
+                logging.warning(f'Multiple albums match "{keywords}" via case-fold: {match_names}. Using "{actual_name}"')
+            else:
+                logging.info(f'Album "{keywords}" matched via case-fold to "{actual_name}"')
         config = self.getImmichConfiguration()
         server_url = config.get('server_url', '') if config else ''
 
