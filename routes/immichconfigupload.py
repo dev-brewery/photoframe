@@ -72,8 +72,11 @@ class RouteImmichConfigUpload(BaseRoute):
                     return f'Immich configuration is invalid: {validation_result}', 400
 
                 # Set configuration (also validates internally, but we already checked)
+                old_ready = self.servicemgr.hasReadyServices()
                 if self.servicemgr.setImmichServiceConfiguration(service, data):
-                    self.slideshow.trigger()
+                    new_ready = self.servicemgr.hasReadyServices()
+                    if old_ready != new_ready:
+                        self.slideshow.trigger()
                     return 'Immich configuration uploaded successfully', 200
                 else:
                     return 'Service does not support Immich configuration', 400
