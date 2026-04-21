@@ -243,7 +243,7 @@ class Immich(BaseService):
                 sorted_matches = sorted(
                     case_fold_matches,
                     key=lambda a: (
-                        not (a.get('albumName') or a.get('name', '')).startswith(keywords[:1] if keywords else ''),
+                        not (a.get('albumName') or a.get('name', '')).lower().startswith(keywords[:1].lower() if keywords else ''),
                         len(a.get('albumName') or a.get('name', ''))
                     )
                 )
@@ -272,7 +272,9 @@ class Immich(BaseService):
             'updatedAt': matched_album.get('updatedAt', '')
         }
 
-        return {'error': None, 'keywords': keywords, 'extras': albumInfo}
+        # Return canonical album name (better UX: "summer 2023" becomes "Summer 2023")
+        canonical_name = albumInfo['albumName']
+        return {'error': None, 'keywords': canonical_name, 'extras': albumInfo}
 
     def addKeywords(self, keywords):
         result = BaseService.addKeywords(self, keywords)
