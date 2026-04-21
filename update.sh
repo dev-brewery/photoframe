@@ -80,6 +80,9 @@ if [ "$1" = "post" ]; then
 	# /root/http_auth.json. The runtime now reads http-auth.json
 	# (modules/sysconfig.py:146), so migrate the location AND the name.
 	mv /root/http_auth.json /root/photoframe_config/http-auth.json >/dev/null 2>/dev/null
+	# Also handle the case where a prior update.sh already relocated the
+	# underscore file into photoframe_config/ without renaming it.
+	mv /root/photoframe_config/http_auth.json /root/photoframe_config/http-auth.json >/dev/null 2>/dev/null
 
 	# We also have added more dependencies, so add more software
 	apt-get update
