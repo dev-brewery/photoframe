@@ -172,7 +172,7 @@ class Immich(BaseService):
                 try:
                     response = requests.get(albums_url, headers=headers, timeout=180)
                     if RetryConfig.is_terminal_code(response.status_code):
-                        raise RequestTerminalError(f'Immich returned HTTP {response.status_code}')
+                        raise RequestTerminalError(f'Immich returned HTTP {response.status_code}', status_code=response.status_code)
                     if not RetryConfig.is_transient_code(response.status_code):
                         break  # Success or non-transient
                     delay = retry_config.get_delay(attempt)
@@ -201,11 +201,11 @@ class Immich(BaseService):
                 return {'success': False, 'albums': [], 'error': f'Server returned error {response.status_code}'}
 
         except RequestTerminalError as e:
-            if '401' in str(e):
+            if e.status_code == 401:
                 return {'success': False, 'albums': [], 'error': 'Authentication failed. Check your API key.'}
-            elif '403' in str(e):
+            elif e.status_code == 403:
                 return {'success': False, 'albums': [], 'error': 'Access denied. Check API key permissions.'}
-            elif '404' in str(e):
+            elif e.status_code == 404:
                 return {'success': False, 'albums': [], 'error': 'Immich server not found. Check server URL.'}
             return {'success': False, 'albums': [], 'error': str(e)}
         except RequestNoNetwork as e:
@@ -535,7 +535,7 @@ class Immich(BaseService):
                     # Terminal errors - don't retry, raise immediately
                     if RetryConfig.is_terminal_code(r.status_code):
                         logging.error(f'Terminal HTTP {r.status_code} from Immich, not retrying')
-                        raise RequestTerminalError(f'Immich returned HTTP {r.status_code}')
+                        raise RequestTerminalError(f'Immich returned HTTP {r.status_code}', status_code=r.status_code)
 
                     # Transient errors - retry with backoff
                     if RetryConfig.is_transient_code(r.status_code):

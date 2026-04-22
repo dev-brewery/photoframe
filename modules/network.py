@@ -79,7 +79,9 @@ class RequestExpiredToken(Exception):
 
 class RequestTerminalError(Exception):
     """Non-retryable error (bad credentials, not found, etc.)"""
-    pass
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class RetryConfig:
