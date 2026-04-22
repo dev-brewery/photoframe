@@ -156,7 +156,12 @@ class Immich(BaseService):
             result = {'albumId': extras[keyword]['albumId']}
         return result
 
-    def discoverAlbums(self):
+    def discoverAlbums(self, use_cache=False):
+        # Return cached albums if available and requested
+        if use_cache and '_ALBUMS_CACHE' in self._STATE and self._STATE['_ALBUMS_CACHE']:
+            logging.debug('Immich discoverAlbums: returning cached albums')
+            return {'success': True, 'albums': self._STATE['_ALBUMS_CACHE'], 'error': None}
+
         config = self.getImmichConfiguration()
         if not config or 'server_url' not in config or 'api_key' not in config:
             return {'success': False, 'albums': [], 'error': 'Immich configuration not found'}
@@ -199,6 +204,7 @@ class Immich(BaseService):
             if response.status_code == 200:
                 albums_data = response.json()
                 logging.info(f'Immich discoverAlbums: successfully retrieved {len(albums_data)} albums')
+                self._STATE['_ALBUMS_CACHE'] = albums_data
                 return {'success': True, 'albums': albums_data, 'error': None}
             else:
                 return {'success': False, 'albums': [], 'error': f'Server returned error {response.status_code}'}
@@ -229,7 +235,7 @@ class Immich(BaseService):
         if not keywords:
             return {'error': 'Album name cannot be empty', 'keywords': keywords}
 
-        discovery_result = self.discoverAlbums()
+        discovery_result = self.discoverAlbums(use_cache=True)
         if not discovery_result['success']:
             return {'error': f'Failed to connect to Immich server: {discovery_result["error"]}', 'keywords': keywords}
 
