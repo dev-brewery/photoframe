@@ -553,11 +553,12 @@ class Immich(BaseService):
                         logging.warning(f'Network error from Immich: {type(e).__name__}, pausing {delay:.1f}s')
                         time.sleep(delay)
                     else:
-                        logging.error(f'Network unavailable after {retry_config.max_retries} attempts')
-                        raise RequestNoNetwork(f'Failed to connect to Immich: {e}')
+                        logging.error(f'Network unavailable after {retry_config.max_retries} attempts: {e}')
+                        return RequestResult().setResult(RequestResult.NO_NETWORK)
 
             if r is None:
-                raise RequestNoNetwork('No response from Immich server')
+                logging.error('No response from Immich server after retries')
+                return RequestResult().setResult(RequestResult.NO_NETWORK)
 
             result = RequestResult()
             result.setHTTPCode(r.status_code).setHeaders(r.headers).setResult(RequestResult.SUCCESS)
