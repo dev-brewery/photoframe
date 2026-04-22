@@ -320,3 +320,9 @@ curl -u photoframe:password http://<pi-ip>:7777/control/screenon
 These endpoints respect the HTTP authentication configured in
 `/root/photoframe_config/http-auth.json`. Both return JSON:
 `{"screen": "on", "success": true}` or `{"screen": "off", "success": true}`.
+
+**Note:** This is API groundwork for a future persistent manual override
+feature. Currently, schedule and ambient light sensor rules continue to
+run and may revert the display state on the next evaluation cycle (up to
+60 seconds). A future release will add the ability to hold a manual
+override until explicitly cleared.
