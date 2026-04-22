@@ -52,7 +52,9 @@ function injectBrowseButtons() {
         services.forEach(function(svc) {
             if (svc.hasAlbumPicker) {
                 // Find the keyword input row for this service and inject Browse button
-                var helpBtn = $('.keyword-help[data-service="' + svc.id + '"]');
+                var helpBtn = $('.keyword-help').filter(function() {
+                    return $(this).data('service') === svc.id;
+                });
                 if (helpBtn.length && !helpBtn.siblings('.immich-album-browse').length) {
                     var browseBtn = $('<input type="button" class="immich-album-browse" value="Browse">')
                         .attr('data-service', svc.id);
@@ -112,7 +114,9 @@ function bindModalEvents() {
         var serviceId = $('#immich_album_service').val();
 
         if (selected) {
-            var browseBtn = $('.immich-album-browse[data-service="' + serviceId + '"]');
+            var browseBtn = $('.immich-album-browse').filter(function() {
+                return $(this).data('service') === serviceId;
+            });
             var keywordInput = browseBtn.closest('p').find('.keyword');
             if (keywordInput.length) {
                 keywordInput.val(selected);
