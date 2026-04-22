@@ -21,7 +21,7 @@ import time
 import requests
 import shutil
 
-from modules.network import RequestResult, RequestNoNetwork
+from modules.network import RequestResult, RequestNoNetwork, RequestTerminalError, RetryConfig
 from modules.helper import helper
 
 
@@ -165,29 +165,49 @@ class Immich(BaseService):
 
         try:
             logging.debug(f'Immich discoverAlbums: calling GET {albums_url}')
-            tries = 0
+            retry_config = RetryConfig()
             response = None
-            while tries < 5:
+
+            for attempt in range(retry_config.max_retries):
                 try:
                     response = requests.get(albums_url, headers=headers, timeout=180)
-                    break
-                except requests.exceptions.RequestException as e:
-                    logging.exception(f'Issues calling Immich albums API, attempt {tries + 1}')
-                    if tries == 4:
+                    if RetryConfig.is_terminal_code(response.status_code):
+                        raise RequestTerminalError(f'Immich returned HTTP {response.status_code}', status_code=response.status_code)
+                    if not RetryConfig.is_transient_code(response.status_code):
+                        break  # Success or non-transient
+                    delay = retry_config.get_delay(attempt)
+                    logging.warning(f'Transient HTTP {response.status_code} from Immich, pausing {delay:.1f}s')
+                    time.sleep(delay)
+                except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+                    delay = retry_config.get_delay(attempt)
+                    if attempt + 1 < retry_config.max_retries:
+                        logging.warning(f'Network error calling Immich: {type(e).__name__}, pausing {delay:.1f}s')
+                        time.sleep(delay)
+                    else:
                         raise RequestNoNetwork(f'Failed to connect to Immich server: {str(e)}')
-                time.sleep(tries * 10)
-                tries += 1
-                logging.warning(f'Retrying Immich albums API call, attempt #{tries + 1}')
+
+            if response is None:
+                raise RequestNoNetwork('No response from Immich server')
+
+            # Log if we exhausted retries on transient errors
+            if RetryConfig.is_transient_code(response.status_code):
+                logging.warning(f'Immich albums API failed after {retry_config.max_retries} retries with HTTP {response.status_code}')
 
             if response.status_code == 200:
                 albums_data = response.json()
                 logging.info(f'Immich discoverAlbums: successfully retrieved {len(albums_data)} albums')
                 return {'success': True, 'albums': albums_data, 'error': None}
-            elif response.status_code == 401:
-                return {'success': False, 'albums': [], 'error': 'Authentication failed. Check your API key.'}
             else:
                 return {'success': False, 'albums': [], 'error': f'Server returned error {response.status_code}'}
 
+        except RequestTerminalError as e:
+            if e.status_code == 401:
+                return {'success': False, 'albums': [], 'error': 'Authentication failed. Check your API key.'}
+            elif e.status_code == 403:
+                return {'success': False, 'albums': [], 'error': 'Access denied. Check API key permissions.'}
+            elif e.status_code == 404:
+                return {'success': False, 'albums': [], 'error': 'Immich server not found. Check server URL.'}
+            return {'success': False, 'albums': [], 'error': str(e)}
         except RequestNoNetwork as e:
             return {'success': False, 'albums': [], 'error': f'Network error: {str(e)}'}
         except Exception as e:
@@ -502,34 +522,50 @@ class Immich(BaseService):
         # Check if this is an Immich URL that needs authentication
         if config and 'server_url' in config and url and url.startswith(config['server_url']):
             headers = {'x-api-key': config['api_key']}
-            
-            tries = 0
-            while tries < 5:
+            retry_config = RetryConfig()
+            r = None
+
+            for attempt in range(retry_config.max_retries):
                 try:
                     if usePost:
                         r = requests.post(url, params=params, json=data, headers=headers, timeout=180)
                     else:
                         r = requests.get(url, params=params, headers=headers, timeout=180, stream=True)
+
+                    # Terminal errors - don't retry, raise immediately
+                    if RetryConfig.is_terminal_code(r.status_code):
+                        logging.error(f'Terminal HTTP {r.status_code} from Immich, not retrying')
+                        raise RequestTerminalError(f'Immich returned HTTP {r.status_code}', status_code=r.status_code)
+
+                    # Transient errors - retry with backoff
+                    if RetryConfig.is_transient_code(r.status_code):
+                        delay = retry_config.get_delay(attempt)
+                        logging.warning(f'Transient HTTP {r.status_code} from Immich, pausing {delay:.1f}s')
+                        time.sleep(delay)
+                        continue
+
+                    # Success
                     break
-                except Exception as e:
-                    logging.exception(f'Issues downloading from Immich (attempt {tries + 1})')
-                    if tries == 4:
-                        raise RequestNoNetwork(f'Failed to connect to Immich')
-                
-                time.sleep(tries * 10)
-                tries += 1
-                logging.warning(f'Retrying Immich request, attempt #{tries + 1}')
-            
-            if tries == 5:
-                logging.error('Failed to download from Immich due to network issues')
-                raise RequestNoNetwork('Network timeout')
-            
+
+                except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+                    delay = retry_config.get_delay(attempt)
+                    if attempt + 1 < retry_config.max_retries:
+                        logging.warning(f'Network error from Immich: {type(e).__name__}, pausing {delay:.1f}s')
+                        time.sleep(delay)
+                    else:
+                        logging.error(f'Network unavailable after {retry_config.max_retries} attempts: {e}')
+                        return RequestResult().setResult(RequestResult.NO_NETWORK)
+
+            if r is None:
+                logging.error('No response from Immich server after retries')
+                return RequestResult().setResult(RequestResult.NO_NETWORK)
+
             result = RequestResult()
             result.setHTTPCode(r.status_code).setHeaders(r.headers).setResult(RequestResult.SUCCESS)
-            
+
             if r.status_code != 200:
                 logging.error(f'Immich returned status {r.status_code} for {url}')
-                result.setResult(RequestResult.GENERAL_ERROR)
+                result.setResult(RequestResult.UNKNOWN)
                 return result
             
             if destination is None:

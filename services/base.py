@@ -28,6 +28,7 @@ from modules.network import RequestResult
 from modules.network import RequestNoNetwork
 from modules.network import RequestInvalidToken
 from modules.network import RequestExpiredToken
+from modules.network import RequestTerminalError
 from modules.images import ImageHolder
 
 from modules.memory import MemoryManager
@@ -622,6 +623,9 @@ class BaseService:
         logging.exception('Cannot fetch due to token issues')
         result = RequestResult().setResult(RequestResult.OAUTH_INVALID)
         self._OAUTH = None
+      except RequestTerminalError as e:
+        logging.error(f'Terminal error fetching image: {e}')
+        result = RequestResult().setResult(RequestResult.UNKNOWN).setHTTPCode(e.status_code or 0)
       except requests.exceptions.RequestException:
         logging.exception('request to download image failed')
         result = RequestResult().setResult(RequestResult.NO_NETWORK)
