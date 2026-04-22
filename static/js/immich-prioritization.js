@@ -34,11 +34,16 @@ function injectPrioritizationDropdowns() {
  */
 function injectDropdownForService(serviceId) {
     // Find the service section and the keyword area
-    var keywordHelp = $('.keyword-help[data-service="' + serviceId + '"]');
+    var keywordHelp = $('.keyword-help').filter(function() {
+        return $(this).data('service') === serviceId;
+    });
     if (!keywordHelp.length) return;
 
     // Check if already injected
-    if ($('.immich-prioritization[data-service="' + serviceId + '"]').length) return;
+    var existing = $('.immich-prioritization').filter(function() {
+        return $(this).data('service') === serviceId;
+    });
+    if (existing.length) return;
 
     // Fetch current prioritization settings
     $.ajax({
@@ -47,21 +52,24 @@ function injectDropdownForService(serviceId) {
     }).done(function(data) {
         if (!data.success) return;
 
-        // Build dropdown HTML
-        var html = '<p class="nospace" style="margin-top: 5px;">' +
-            '<label style="margin-right: 5px;">Image order:</label>' +
-            '<select class="immich-prioritization" data-service="' + serviceId + '">';
+        // Build dropdown using jQuery element creation
+        var select = $('<select class="immich-prioritization">').attr('data-service', serviceId);
 
         for (var mode in data.modes) {
-            var selected = (mode === data.current) ? ' selected' : '';
-            html += '<option value="' + mode + '"' + selected + '>' + data.modes[mode] + '</option>';
+            var option = $('<option>').val(mode).text(data.modes[mode]);
+            if (mode === data.current) {
+                option.prop('selected', true);
+            }
+            select.append(option);
         }
 
-        html += '</select></p>';
+        var wrapper = $('<p class="nospace" style="margin-top: 5px;">')
+            .append($('<label style="margin-right: 5px;">').text('Image order:'))
+            .append(select);
 
         // Insert after the keyword input row
         var keywordRow = keywordHelp.closest('p');
-        keywordRow.after(html);
+        keywordRow.after(wrapper);
     });
 }
 
