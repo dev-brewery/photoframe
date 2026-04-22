@@ -84,7 +84,7 @@ function bindModalEvents() {
                 $('#immich_album_search').focus();
             } else {
                 $('#immich_album_list').empty().append(
-                    '<option value="">Error: ' + (data.error || 'Unknown error') + '</option>'
+                    $('<option>').val('').text('Error: ' + (data.error || 'Unknown error'))
                 );
             }
         }).fail(function() {
