@@ -29,6 +29,7 @@ class RouteKeywords(BaseRoute):
     self.addUrl('/keywords/<service>/delete').clearMethods().addMethod('POST')
     self.addUrl('/keywords/<service>/source/<int:index>')
     self.addUrl('/keywords/<service>/details/<int:index>')
+    self.addUrl('/keywords/<service>/albums')  # Album picker (Immich, extensible)
 
   def handle(self, app, service, index=None):
     if self.getRequest().method == 'GET':
@@ -38,6 +39,9 @@ class RouteKeywords(BaseRoute):
         return self.jsonify(self.servicemgr.detailsServiceKeywords(service, index))
       elif 'help' in self.getRequest().url:
         return self.jsonify({'message' : self.servicemgr.helpServiceKeywords(service)})
+      elif 'albums' in self.getRequest().url:
+        # Album picker endpoint (Immich, extensible to other services)
+        return self.jsonify(self.servicemgr.getServiceAlbums(service))
       else:
         return self.jsonify({'keywords' : self.servicemgr.getServiceKeywords(service)})
     elif self.getRequest().method == 'POST' and self.getRequest().json is not None:

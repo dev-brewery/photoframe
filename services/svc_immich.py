@@ -126,6 +126,9 @@ class Immich(BaseService):
     def hasKeywordDetails(self):
         return True
 
+    def hasAlbumPicker(self):
+        return True
+
     def removeKeywords(self, index):
         keys = self.getKeywords()
         if index < 0 or index >= len(keys):
@@ -153,7 +156,12 @@ class Immich(BaseService):
             result = {'albumId': extras[keyword]['albumId']}
         return result
 
-    def discoverAlbums(self):
+    def discoverAlbums(self, use_cache=False):
+        # Return cached albums if available and requested
+        if use_cache and '_ALBUMS_CACHE' in self._STATE and self._STATE['_ALBUMS_CACHE']:
+            logging.debug('Immich discoverAlbums: returning cached albums')
+            return {'success': True, 'albums': self._STATE['_ALBUMS_CACHE'], 'error': None}
+
         config = self.getImmichConfiguration()
         if not config or 'server_url' not in config or 'api_key' not in config:
             return {'success': False, 'albums': [], 'error': 'Immich configuration not found'}
@@ -196,6 +204,7 @@ class Immich(BaseService):
             if response.status_code == 200:
                 albums_data = response.json()
                 logging.info(f'Immich discoverAlbums: successfully retrieved {len(albums_data)} albums')
+                self._STATE['_ALBUMS_CACHE'] = albums_data
                 return {'success': True, 'albums': albums_data, 'error': None}
             else:
                 return {'success': False, 'albums': [], 'error': f'Server returned error {response.status_code}'}
@@ -226,39 +235,47 @@ class Immich(BaseService):
         if not keywords:
             return {'error': 'Album name cannot be empty', 'keywords': keywords}
 
-        discovery_result = self.discoverAlbums()
-        if not discovery_result['success']:
-            return {'error': f'Failed to connect to Immich server: {discovery_result["error"]}', 'keywords': keywords}
+        # Try cache first, fall back to fresh fetch if not found
+        matched_album = None
+        used_cache = False
+        for attempt in range(2):
+            if attempt == 0:
+                discovery_result = self.discoverAlbums(use_cache=True)
+                used_cache = '_ALBUMS_CACHE' in self._STATE and self._STATE['_ALBUMS_CACHE']
+            else:
+                logging.debug(f'Album "{keywords}" not found in cache, fetching fresh')
+                discovery_result = self.discoverAlbums(use_cache=False)
 
-        albums = discovery_result['albums']
-        if not albums:
-            return {'error': 'No albums found on Immich server', 'keywords': keywords}
+            if not discovery_result['success']:
+                return {'error': f'Failed to connect to Immich server: {discovery_result["error"]}', 'keywords': keywords}
 
-        # Try exact-case match first
-        exact_matches = [a for a in albums if (a.get('albumName') or a.get('name', '')) == keywords]
+            albums = discovery_result['albums']
+            if not albums:
+                if attempt == 0 and used_cache:
+                    continue
+                return {'error': 'No albums found on Immich server', 'keywords': keywords}
 
-        if len(exact_matches) == 1:
-            matched_album = exact_matches[0]
-            logging.debug(f'Album "{keywords}" matched exactly')
-        elif len(exact_matches) > 1:
-            matched_album = exact_matches[0]
-            logging.warning(f'Multiple albums with exact name "{keywords}", using first match')
-        else:
+            # Try exact-case match first
+            exact_matches = [a for a in albums if (a.get('albumName') or a.get('name', '')) == keywords]
+
+            if len(exact_matches) == 1:
+                matched_album = exact_matches[0]
+                logging.debug(f'Album "{keywords}" matched exactly')
+                break
+            elif len(exact_matches) > 1:
+                matched_album = exact_matches[0]
+                logging.warning(f'Multiple albums with exact name "{keywords}", using first match')
+                break
+
             # Fall back to case-insensitive match
             case_fold_matches = [a for a in albums if (a.get('albumName') or a.get('name', '')).lower() == keywords.lower()]
-
-            if len(case_fold_matches) == 0:
-                available_names = [a.get('albumName', a.get('name', 'Unknown')) for a in albums[:10]]
-                available_list = ', '.join(available_names)
-                if len(albums) > 10:
-                    available_list += f', ... and {len(albums) - 10} more'
-                return {'error': f'No album found matching "{keywords}" (case-insensitive). Available albums: {available_list}', 'keywords': keywords}
 
             if len(case_fold_matches) == 1:
                 matched_album = case_fold_matches[0]
                 actual_name = matched_album.get('albumName') or matched_album.get('name', '')
                 logging.info(f'Album "{keywords}" matched via case-fold to "{actual_name}"')
-            else:
+                break
+            elif len(case_fold_matches) > 1:
                 # Multiple case-fold matches - prefer one starting with same first char
                 sorted_matches = sorted(
                     case_fold_matches,
@@ -271,6 +288,14 @@ class Immich(BaseService):
                 actual_name = matched_album.get('albumName') or matched_album.get('name', '')
                 other_names = [a.get('albumName', a.get('name', '')) for a in sorted_matches[1:3]]
                 logging.warning(f'Multiple albums match "{keywords}" via case-fold. Using "{actual_name}". Other matches: {other_names}')
+                break
+
+            # No match - if we used cache, try fresh fetch
+            if attempt == 0 and used_cache:
+                continue
+
+            # Final failure after fresh fetch
+            return {'error': f'No album found matching "{keywords}". Use the Browse button to see available albums.', 'keywords': keywords}
 
         # Check if this album ID is already added under a different keyword (case-variant duplicate)
         matched_album_id = matched_album.get('id')
