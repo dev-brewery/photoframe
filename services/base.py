@@ -206,7 +206,7 @@ class BaseService:
           logging.debug('Keywords either not scanned or we need to scan now')
           self._getImagesFor(keyword) # Will make sure to get images
           self._STATE['_NEXT_SCAN'][keyword] = time.time() + self.REFRESH_DELAY
-        sum = sum + self._STATE["_NUM_IMAGES"][keyword]  
+        sum = sum + self._STATE["_NUM_IMAGES"].get(keyword, 0)
     return sum
 
   def getImagesSeen(self):
