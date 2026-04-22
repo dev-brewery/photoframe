@@ -99,13 +99,14 @@ function bindModalEvents() {
     // Filter albums as user types
     $(document).on('input', '#immich_album_search', function() {
         var filter = $(this).val().toLowerCase();
-        var albums = $('#immich_album_list').data('albums');
+        var albums = $('#immich_album_list').data('albums-original');
         if (!albums) return;
 
         var filtered = albums.filter(function(album) {
-            return album.albumName.toLowerCase().indexOf(filter) !== -1;
+            var name = album.albumName || '';
+            return name.toLowerCase().indexOf(filter) !== -1;
         });
-        populateAlbumList(filtered);
+        populateAlbumList(filtered, false);
     });
 
     // Select button - fill keyword input and close
@@ -153,8 +154,10 @@ function bindModalEvents() {
 
 /**
  * Populate the album dropdown
+ * @param {Array} albums - Album objects to display
+ * @param {boolean} storeOriginal - If true, store as original dataset for filtering (default: true)
  */
-function populateAlbumList(albums) {
+function populateAlbumList(albums, storeOriginal) {
     var select = $('#immich_album_list');
     select.empty();
 
@@ -164,11 +167,13 @@ function populateAlbumList(albums) {
     }
 
     albums.forEach(function(album) {
+        var name = album.albumName || '(untitled)';
         var count = album.assetCount || 0;
-        var label = album.albumName + ' (' + count + ' photo' + (count !== 1 ? 's' : '') + ')';
-        select.append($('<option>').val(album.albumName).text(label));
+        var label = name + ' (' + count + ' photo' + (count !== 1 ? 's' : '') + ')';
+        select.append($('<option>').val(name).text(label));
     });
 
-    // Store for filtering
-    select.data('albums', albums);
+    if (storeOriginal !== false) {
+        select.data('albums-original', albums);
+    }
 }
