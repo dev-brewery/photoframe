@@ -93,7 +93,10 @@ class Photoframe:
     self.slideshow = slideshow(self.displayMgr, self.settingsMgr, self.colormatch, self.imageHistory)
     self.timekeeperMgr = timekeeper()
     self.timekeeperMgr.registerListener(self.displayMgr.enable)
-    self.powerMgr = shutdown(self.settingsMgr.getUser('shutdown-pin'))
+    shutdown_pin = self.settingsMgr.getUser('shutdown-pin')
+    if shutdown_pin == 'auto':
+      shutdown_pin = shutdown.detect_default_pin()
+    self.powerMgr = shutdown(shutdown_pin)
 
     self.cacheMgr.validate()
     self.cacheMgr.enableCache(self.settingsMgr.getUser('enable-cache') == 1)

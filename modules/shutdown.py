@@ -22,6 +22,29 @@ import logging
 import atexit
 
 class shutdown(Thread):
+	@staticmethod
+	def detect_default_pin():
+		"""Auto-detect GPIO pin based on TCS34725 color sensor presence.
+
+		Returns GPIO 26 if sensor detected (conflicts with GPIO 3's I2C),
+		otherwise GPIO 3 (allows halt-then-restart via button).
+		"""
+		try:
+			import smbus
+			bus = smbus.SMBus(1)
+			try:
+				bus.write_byte(0x29, 0x80 | 0x12)
+				device_id = bus.read_byte(0x29)
+				if device_id == 0x44:
+					logging.info('TCS34725 detected, using GPIO 26 for shutdown')
+					return 26
+			finally:
+				bus.close()
+		except Exception:
+			pass
+		logging.info('No color sensor detected, using GPIO 3 for shutdown')
+		return 3
+
 	def __init__(self, usePIN=26):
 		Thread.__init__(self)
 		self.daemon = True
@@ -40,7 +63,6 @@ class shutdown(Thread):
 
 	def run(self):
 		logging.info(f'GPIO shutdown can be triggered by GPIO {self.gpio}')
-		# Shutdown can be initated from GPIO26
 		poller = select.poll()
 		try:
 			with open('/sys/class/gpio/export', 'wb') as f:
