@@ -303,3 +303,26 @@ was chosen.
 Start `frame.py` with `--emulate` to run without an RPi. The emulator
 mode is useful for iterating on the web UI and photo-service code
 without needing to reflash a card every time.
+
+## HTTP API for display control
+
+The display can be turned on and off via HTTP, useful for home
+automation integration (Home Assistant, Domoticz, etc.):
+
+```bash
+# Turn screen off
+curl -u photoframe:password http://<pi-ip>:7777/control/screenoff
+
+# Turn screen on
+curl -u photoframe:password http://<pi-ip>:7777/control/screenon
+```
+
+These endpoints respect the HTTP authentication configured in
+`/root/photoframe_config/http-auth.json`. Both return JSON:
+`{"screen": "on", "success": true}` or `{"screen": "off", "success": true}`.
+
+**Note:** This is API groundwork for a future persistent manual override
+feature. Currently, schedule and ambient light sensor rules continue to
+run and may revert the display state on the next evaluation cycle (up to
+60 seconds). A future release will add the ability to hold a manual
+override until explicitly cleared.

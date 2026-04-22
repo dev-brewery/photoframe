@@ -112,6 +112,18 @@ class timekeeper(Thread):
 			logging.debug(f'Notifying {repr(listener)} of power change to {hasPower}')
 			listener(hasPower)
 
+	def setManualPower(self, enable):
+		"""Set display power manually, bypassing schedule/sensor logic.
+
+		Updates standby state so evaluatePower() won't immediately undo the change.
+		The next schedule/sensor trigger will still apply if conditions are met.
+		"""
+		new_standby = not enable
+		if self.standby != new_standby:
+			self.standby = new_standby
+			logging.info(f'Manual power control: display {"on" if enable else "off"}')
+			self.notifyListeners(enable)
+
 	def run(self):
 		self.scheduleOff = False
 		while True:
