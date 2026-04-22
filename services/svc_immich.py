@@ -70,7 +70,7 @@ class Immich(BaseService):
         return True
 
     def helpKeywords(self):
-        return 'Each entry represents the name of an Immich album. Enter the exact album name as it appears in your Immich library.'
+        return 'Enter an Immich album name. Matching is case-insensitive; the resolved album name will be shown after adding.'
 
     def hasKeywordSourceUrl(self):
         return True
@@ -214,15 +214,51 @@ class Immich(BaseService):
         if not albums:
             return {'error': 'No albums found on Immich server', 'keywords': keywords}
 
-        matching_albums = [a for a in albums if (a.get('albumName') or a.get('name', '')).lower() == keywords.lower()]
-        if len(matching_albums) == 0:
-            available_names = [a.get('albumName', a.get('name', 'Unknown')) for a in albums[:10]]
-            available_list = ', '.join(available_names)
-            if len(albums) > 10:
-                available_list += f', ... and {len(albums) - 10} more'
-            return {'error': f'No album found with name "{keywords}". Available albums: {available_list}', 'keywords': keywords}
+        # Try exact-case match first
+        exact_matches = [a for a in albums if (a.get('albumName') or a.get('name', '')) == keywords]
 
-        matched_album = matching_albums[0]
+        if len(exact_matches) == 1:
+            matched_album = exact_matches[0]
+            logging.debug(f'Album "{keywords}" matched exactly')
+        elif len(exact_matches) > 1:
+            matched_album = exact_matches[0]
+            logging.warning(f'Multiple albums with exact name "{keywords}", using first match')
+        else:
+            # Fall back to case-insensitive match
+            case_fold_matches = [a for a in albums if (a.get('albumName') or a.get('name', '')).lower() == keywords.lower()]
+
+            if len(case_fold_matches) == 0:
+                available_names = [a.get('albumName', a.get('name', 'Unknown')) for a in albums[:10]]
+                available_list = ', '.join(available_names)
+                if len(albums) > 10:
+                    available_list += f', ... and {len(albums) - 10} more'
+                return {'error': f'No album found matching "{keywords}" (case-insensitive). Available albums: {available_list}', 'keywords': keywords}
+
+            if len(case_fold_matches) == 1:
+                matched_album = case_fold_matches[0]
+                actual_name = matched_album.get('albumName') or matched_album.get('name', '')
+                logging.info(f'Album "{keywords}" matched via case-fold to "{actual_name}"')
+            else:
+                # Multiple case-fold matches - prefer one starting with same first char
+                sorted_matches = sorted(
+                    case_fold_matches,
+                    key=lambda a: (
+                        not (a.get('albumName') or a.get('name', '')).lower().startswith(keywords[:1].lower() if keywords else ''),
+                        len(a.get('albumName') or a.get('name', ''))
+                    )
+                )
+                matched_album = sorted_matches[0]
+                actual_name = matched_album.get('albumName') or matched_album.get('name', '')
+                other_names = [a.get('albumName', a.get('name', '')) for a in sorted_matches[1:3]]
+                logging.warning(f'Multiple albums match "{keywords}" via case-fold. Using "{actual_name}". Other matches: {other_names}')
+
+        # Check if this album ID is already added under a different keyword (case-variant duplicate)
+        matched_album_id = matched_album.get('id')
+        existing_extras = self.getExtras()
+        for existing_kw, existing_info in existing_extras.items():
+            if existing_info.get('albumId') == matched_album_id:
+                return {'error': f'Album already added as "{existing_kw}"', 'keywords': keywords}
+
         config = self.getImmichConfiguration()
         server_url = config.get('server_url', '') if config else ''
 
@@ -236,7 +272,9 @@ class Immich(BaseService):
             'updatedAt': matched_album.get('updatedAt', '')
         }
 
-        return {'error': None, 'keywords': keywords, 'extras': albumInfo}
+        # Return canonical album name (better UX: "summer 2023" becomes "Summer 2023")
+        canonical_name = albumInfo['albumName']
+        return {'error': None, 'keywords': canonical_name, 'extras': albumInfo}
 
     def addKeywords(self, keywords):
         result = BaseService.addKeywords(self, keywords)
