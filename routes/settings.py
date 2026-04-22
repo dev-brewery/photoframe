@@ -78,6 +78,8 @@ class RouteSettings(BaseRoute):
       if key in ['powersave']:
         self.timekeeper.setPowermode(self.settingsMgr.getUser('powersave'))
       if key in ['shutdown-pin']:
+        # 'auto' is stored as-is; GET returns 'auto', not the resolved pin.
+        # Resolution to GPIO 26 (hat) or 3 (non-hat) happens here and at startup.
         self.powermanagement.stopmonitor()
         pin = self.settingsMgr.getUser('shutdown-pin')
         if pin == 'auto':
