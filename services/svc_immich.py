@@ -14,21 +14,193 @@
 # along with photoframe.  If not, see <http://www.gnu.org/licenses/>.
 #
 from services.base import BaseService
-import os
 import json
 import logging
+import os
 import time
+
 import requests
-import shutil
 
 from modules.network import RequestResult, RequestNoNetwork
-from modules.helper import helper
+
+
+class ImmichApiError(Exception):
+    pass
+
+
+class ImmichAuthError(ImmichApiError):
+    pass
+
+
+class ImmichSchemaError(ImmichApiError):
+    pass
+
+
+class ImmichApiBase:
+    API_VERSION = 0
+
+    def __init__(self, config, api_prefix='/api'):
+        self.server_url = config['server_url'].rstrip('/')
+        self.api_key = config['api_key']
+        self.api_prefix = api_prefix or ''
+        self.api_base = f'{self.server_url}{self.api_prefix}'
+
+    def _headers(self):
+        return {'x-api-key': self.api_key, 'Accept': 'application/json'}
+
+    def _request(self, method, path, params=None, data=None, timeout=30, stream=False):
+        url = f'{self.api_base}{path}'
+        last_error = None
+
+        for attempt in range(5):
+            try:
+                response = requests.request(
+                    method,
+                    url,
+                    params=params,
+                    json=data,
+                    headers=self._headers(),
+                    timeout=timeout,
+                    stream=stream
+                )
+                break
+            except requests.exceptions.RequestException as e:
+                last_error = e
+                logging.exception(f'Issues calling Immich API, attempt {attempt + 1}')
+                if attempt == 4:
+                    raise RequestNoNetwork(f'Failed to connect to Immich server: {e}')
+
+            time.sleep(attempt * 10)
+            logging.warning(f'Retrying Immich API call, attempt #{attempt + 2}')
+        else:
+            raise RequestNoNetwork(f'Failed to connect to Immich server: {last_error}')
+
+        if response.status_code in (401, 403):
+            raise ImmichAuthError('Authentication failed. Check your Immich API key.')
+        if response.status_code == 404:
+            raise ImmichSchemaError(f'Immich endpoint was not found: {path}')
+        if response.status_code == 429 or response.status_code >= 500:
+            raise RequestNoNetwork(f'Immich server returned HTTP {response.status_code}')
+        if response.status_code < 200 or response.status_code >= 300:
+            raise ImmichApiError(f'Immich server returned HTTP {response.status_code}')
+
+        return response
+
+    def _request_json(self, method, path, params=None, data=None, timeout=30):
+        response = self._request(method, path, params=params, data=data, timeout=timeout)
+        try:
+            return response.json()
+        except ValueError as e:
+            raise ImmichSchemaError(f'Immich returned non-JSON response for {path}: {e}')
+
+    def list_albums(self):
+        albums = self._request_json('GET', '/albums', timeout=180)
+        if not isinstance(albums, list):
+            raise ImmichSchemaError('Immich album list response was not an array')
+        return albums
+
+    def get_album_assets(self, album_id):
+        raise NotImplementedError()
+
+    def asset_url(self, asset_id, endpoint):
+        return f'{self.api_base}/assets/{asset_id}/{endpoint}'
+
+    def photo_source_url(self, asset_id):
+        return f'{self.server_url}/photos/{asset_id}'
+
+    def album_source_url(self, album_id):
+        return f'{self.server_url}/albums/{album_id}'
+
+
+class ImmichV2Api(ImmichApiBase):
+    API_VERSION = 2
+
+    def get_album_assets(self, album_id):
+        album = self._request_json('GET', f'/albums/{album_id}')
+        if not isinstance(album, dict):
+            raise ImmichSchemaError('Immich album response was not an object')
+        if 'assets' not in album:
+            raise ImmichSchemaError('Immich v2 album response did not include assets')
+        assets = album.get('assets') or []
+        if not isinstance(assets, list):
+            raise ImmichSchemaError('Immich album assets response was not an array')
+        return assets
+
+
+class ImmichV3Api(ImmichApiBase):
+    API_VERSION = 3
+
+    def get_album_assets(self, album_id):
+        data = {
+            'albumIds': [album_id],
+            'type': 'IMAGE',
+            'withExif': True
+        }
+        assets = self._request_json('POST', '/search/large-assets', data=data)
+        if isinstance(assets, dict) and isinstance(assets.get('items'), list):
+            assets = assets['items']
+        if not isinstance(assets, list):
+            raise ImmichSchemaError('Immich v3 asset search response was not an array')
+        return assets
+
+
+def _parse_immich_version(data):
+    if not isinstance(data, dict):
+        return None
+
+    try:
+        major = int(data['major'])
+        minor = int(data['minor'])
+        patch = int(data['patch'])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    result = {'major': major, 'minor': minor, 'patch': patch}
+    if data.get('prerelease') is not None:
+        result['prerelease'] = data.get('prerelease')
+    return result
+
+
+def detect_immich_api(config):
+    server_url = config['server_url'].rstrip('/')
+    headers = {'x-api-key': config['api_key'], 'Accept': 'application/json'}
+
+    for api_prefix in ('/api', ''):
+        url = f'{server_url}{api_prefix}/server/version'
+        try:
+            response = requests.request('GET', url, headers=headers, timeout=30)
+        except requests.exceptions.RequestException as e:
+            raise RequestNoNetwork(f'Failed to connect to Immich server: {e}')
+
+        if response.status_code in (401, 403):
+            raise ImmichAuthError('Authentication failed. Check your Immich API key.')
+        if response.status_code != 200:
+            continue
+
+        try:
+            version_info = _parse_immich_version(response.json())
+        except ValueError:
+            version_info = None
+
+        if version_info is None:
+            continue
+
+        api_version = 3 if version_info['major'] >= 3 else 2
+        version_info.update({
+            'api_version': api_version,
+            'api_prefix': api_prefix,
+            'server_url': server_url
+        })
+        return version_info
+
+    raise ImmichSchemaError('Unable to detect a supported Immich API version')
 
 
 class Immich(BaseService):
     SERVICE_NAME = 'Immich'
     SERVICE_ID = 10
     MAX_ITEMS = 8000
+    API_INFO_STATE_KEY = '_IMMICH_API_INFO'
 
     def __init__(self, configDir, id, name):
         BaseService.__init__(self, configDir, id, name, needConfig=False, needOAuth=False, needImmichConfig=True)
@@ -60,10 +232,65 @@ class Immich(BaseService):
         server_url = config['server_url'].strip()
         if not server_url.startswith(('http://', 'https://')):
             return 'Server URL must start with http:// or https://'
-        if server_url.endswith('/'):
-            config['server_url'] = server_url[:-1]
+        config['server_url'] = server_url.rstrip('/')
         logging.info('Immich configuration validated successfully')
         return True
+
+    def setImmichConfiguration(self, config):
+        self._STATE.pop(self.API_INFO_STATE_KEY, None)
+        self._IMAGE_CACHE.clear()
+        BaseService.setImmichConfiguration(self, config)
+
+    def _apiInfoMatchesConfig(self, api_info, config):
+        if not api_info or not config:
+            return False
+        return api_info.get('server_url') == config.get('server_url', '').rstrip('/')
+
+    def _createApiFromInfo(self, config, api_info):
+        api_prefix = api_info.get('api_prefix', '/api')
+        if api_info.get('api_version') == 3 or api_info.get('major', 0) >= 3:
+            return ImmichV3Api(config, api_prefix)
+        return ImmichV2Api(config, api_prefix)
+
+    def _clearApiInfo(self):
+        self._STATE.pop(self.API_INFO_STATE_KEY, None)
+        self.saveState()
+
+    def _getImmichApi(self, forceDetect=False):
+        config = self.getImmichConfiguration()
+        if not config or 'server_url' not in config or 'api_key' not in config:
+            raise ImmichApiError('Immich configuration not found')
+
+        api_info = self._STATE.get(self.API_INFO_STATE_KEY)
+        if not forceDetect and self._apiInfoMatchesConfig(api_info, config):
+            return self._createApiFromInfo(config, api_info)
+
+        api_info = detect_immich_api(config)
+        self._STATE[self.API_INFO_STATE_KEY] = api_info
+        self.saveState()
+        logging.info(
+            f'Detected Immich API v{api_info["api_version"]} '
+            f'from server version {api_info["major"]}.{api_info["minor"]}.{api_info["patch"]}'
+        )
+        return self._createApiFromInfo(config, api_info)
+
+    def _callWithApiRetry(self, callback):
+        api = self._getImmichApi()
+        try:
+            return callback(api)
+        except ImmichSchemaError:
+            logging.warning('Immich API shape changed or cached API version is stale, re-detecting')
+            self._clearApiInfo()
+            api = self._getImmichApi(forceDetect=True)
+            return callback(api)
+
+    def _getApiBaseUrl(self):
+        config = self.getImmichConfiguration()
+        if not config or 'server_url' not in config:
+            return None
+        api_info = self._STATE.get(self.API_INFO_STATE_KEY) or {}
+        api_prefix = api_info.get('api_prefix', '/api')
+        return f'{config["server_url"].rstrip("/")}{api_prefix}'
 
     def helpKeywords(self):
         return 'Each entry represents the name of an Immich album. Enter the exact album name as it appears in your Immich library.'
@@ -149,43 +376,21 @@ class Immich(BaseService):
             result = {'albumId': extras[keyword]['albumId']}
         return result
 
+    def _albumName(self, album, default='Unknown'):
+        return album.get('albumName') or album.get('name') or default
+
     def discoverAlbums(self):
-        config = self.getImmichConfiguration()
-        if not config or 'server_url' not in config or 'api_key' not in config:
+        if not self.hasImmichConfiguration():
             return {'success': False, 'albums': [], 'error': 'Immich configuration not found'}
 
-        server_url = config['server_url']
-        api_key = config['api_key']
-        albums_url = f"{server_url}/api/albums"
-        headers = {'x-api-key': api_key, 'Accept': 'application/json'}
-
         try:
-            logging.debug(f'Immich discoverAlbums: calling GET {albums_url}')
-            tries = 0
-            response = None
-            while tries < 5:
-                try:
-                    response = requests.get(albums_url, headers=headers, timeout=180)
-                    break
-                except requests.exceptions.RequestException as e:
-                    logging.exception(f'Issues calling Immich albums API, attempt {tries + 1}')
-                    if tries == 4:
-                        raise RequestNoNetwork(f'Failed to connect to Immich server: {str(e)}')
-                time.sleep(tries * 10)
-                tries += 1
-                logging.warning(f'Retrying Immich albums API call, attempt #{tries + 1}')
-
-            if response.status_code == 200:
-                albums_data = response.json()
-                logging.info(f'Immich discoverAlbums: successfully retrieved {len(albums_data)} albums')
-                return {'success': True, 'albums': albums_data, 'error': None}
-            elif response.status_code == 401:
-                return {'success': False, 'albums': [], 'error': 'Authentication failed. Check your API key.'}
-            else:
-                return {'success': False, 'albums': [], 'error': f'Server returned error {response.status_code}'}
-
+            albums_data = self._callWithApiRetry(lambda api: api.list_albums())
+            logging.info(f'Immich discoverAlbums: successfully retrieved {len(albums_data)} albums')
+            return {'success': True, 'albums': albums_data, 'error': None}
         except RequestNoNetwork as e:
             return {'success': False, 'albums': [], 'error': f'Network error: {str(e)}'}
+        except ImmichAuthError as e:
+            return {'success': False, 'albums': [], 'error': str(e)}
         except Exception as e:
             return {'success': False, 'albums': [], 'error': f'Unexpected error: {str(e)}'}
 
@@ -210,22 +415,21 @@ class Immich(BaseService):
         if not albums:
             return {'error': 'No albums found on Immich server', 'keywords': keywords}
 
-        matching_albums = [a for a in albums if (a.get('albumName') or a.get('name', '')).lower() == keywords.lower()]
+        matching_albums = [a for a in albums if self._albumName(a, '').lower() == keywords.lower()]
         if len(matching_albums) == 0:
-            available_names = [a.get('albumName', a.get('name', 'Unknown')) for a in albums[:10]]
+            available_names = [self._albumName(a) for a in albums[:10]]
             available_list = ', '.join(available_names)
             if len(albums) > 10:
                 available_list += f', ... and {len(albums) - 10} more'
             return {'error': f'No album found with name "{keywords}". Available albums: {available_list}', 'keywords': keywords}
 
         matched_album = matching_albums[0]
-        config = self.getImmichConfiguration()
-        server_url = config.get('server_url', '') if config else ''
+        api = self._getImmichApi()
 
         albumInfo = {
             'albumId': matched_album.get('id'),
-            'sourceUrl': f'{server_url}/albums/{matched_album.get("id")}',
-            'albumName': matched_album.get('albumName', matched_album.get('name', keywords)),
+            'sourceUrl': api.album_source_url(matched_album.get('id')),
+            'albumName': self._albumName(matched_album, keywords),
             'description': matched_album.get('description', ''),
             'assetCount': matched_album.get('assetCount', 0),
             'createdAt': matched_album.get('createdAt', ''),
@@ -246,10 +450,7 @@ class Immich(BaseService):
     # ------------------ Image Retrieval ------------------
 
     def getImagesFor(self, keyword, rawReturn=False):
-        """Get images for keyword from Immich album.
-
-        The album endpoint returns full asset metadata - no need for individual asset calls.
-        """
+        """Get images for keyword from Immich album."""
         logging.debug(f'Immich getImagesFor: keyword="{keyword}"')
 
         query = self.getQueryForKeyword(keyword)
@@ -257,32 +458,26 @@ class Immich(BaseService):
             logging.error(f'Unable to create query for keyword "{keyword}"')
             return []
 
-        config = self.getImmichConfiguration()
-        if not config or 'server_url' not in config or 'api_key' not in config:
-            logging.error('Immich configuration not found')
-            return []
-
-        headers = {'x-api-key': config['api_key']}
-
-        # Fetch album - this returns full asset metadata in one call
-        album_url = f"{config['server_url']}/api/albums/{query['albumId']}"
         try:
-            response = requests.get(album_url, headers=headers, timeout=30)
-            if not response.ok:
-                logging.warning(f'Immich API call failed with status {response.status_code}')
-                return []
-
-            album_data = response.json()
-            assets = album_data.get('assets', [])
-            if not assets:
-                logging.warning(f'No assets found in album for keyword "{keyword}"')
-                return []
-
-            logging.info(f'Retrieved {len(assets)} assets from album "{keyword}"')
-
+            assets = self._callWithApiRetry(lambda api: api.get_album_assets(query['albumId']))
+        except RequestNoNetwork as e:
+            logging.error(f'Temporary Immich network failure for keyword "{keyword}": {e}')
+            return None
+        except ImmichAuthError as e:
+            logging.error(f'Immich authentication failed for keyword "{keyword}": {e}')
+            return [self.createImageHolder().setError(str(e))]
+        except ImmichApiError as e:
+            logging.error(f'Immich API failed for keyword "{keyword}": {e}')
+            return [self.createImageHolder().setError(f'Immich API failed: {e}')]
         except Exception as e:
-            logging.error(f'Failed to get images for keyword "{keyword}": {e}')
+            logging.exception(f'Failed to get images for keyword "{keyword}"')
+            return [self.createImageHolder().setError(f'Failed to get Immich images: {e}')]
+
+        if not assets:
+            logging.warning(f'No assets found in album for keyword "{keyword}"')
             return []
+
+        logging.info(f'Retrieved {len(assets)} assets from album "{keyword}"')
 
         # Cache to JSON file
         filename = os.path.join(self.getStoragePath(), self.hashString(keyword) + '.json')
@@ -298,7 +493,7 @@ class Immich(BaseService):
         return self.parseAlbumInfo(assets, keyword)
 
     def parseAlbumInfo(self, data, keyword):
-        """Convert Immich assets to ImageHolder objects that BaseService can use"""
+        """Convert Immich assets to ImageHolder objects that BaseService can use."""
         logging.info(f'Parsing {len(data)} assets for keyword "{keyword}"')
         result = []
 
@@ -308,26 +503,23 @@ class Immich(BaseService):
             'image/heic', 'image/heif'
         }
 
-        # Get config once outside the loop
+        api_base = self._getApiBaseUrl()
         config = self.getImmichConfiguration()
         server_url = config.get('server_url', '') if config else ''
 
         for i, asset in enumerate(data):
             asset_id = asset.get('id')
             if not asset_id:
-                logging.warning(f'Asset {i+1} missing ID, skipping')
+                logging.warning(f'Asset {i + 1} missing ID, skipping')
                 continue
-            
-            # Check if it's a video and skip
+
             asset_type = asset.get('type')
             if asset_type == 'VIDEO':
-                logging.debug(f'Asset {i+1}: skipping video {asset_id}')
+                logging.debug(f'Asset {i + 1}: skipping video {asset_id}')
                 continue
-            
-            # Get the actual mimeType (album endpoint returns 'originalMimeType')
+
             mime_type = asset.get('originalMimeType') or asset.get('mimeType')
-            
-            # If mimeType is missing, try to infer from filename
+
             if not mime_type:
                 original_filename = (asset.get('originalFileName', '') or '').lower()
                 if original_filename.endswith(('.jpg', '.jpeg')):
@@ -346,67 +538,51 @@ class Immich(BaseService):
                     mime_type = 'image/heic'
                 else:
                     mime_type = 'image/jpeg'
-                    logging.debug(f'Asset {i+1}: defaulting to image/jpeg for {asset_id}')
-            
-            # Skip unsupported types
+                    logging.debug(f'Asset {i + 1}: defaulting to image/jpeg for {asset_id}')
+
             if mime_type not in supported_images:
-                logging.debug(f'Asset {i+1}: skipping unsupported type {mime_type}')
+                logging.debug(f'Asset {i + 1}: skipping unsupported type {mime_type}')
                 continue
-            
-            # Create ImageHolder with all required fields
+
             image = self.createImageHolder()
-            
-            # Set the ID - used for tracking
             image.setId(asset_id)
-            
-            # Set the mimetype - BaseService filters by this
             image.setMimetype(mime_type)
-            
-            # Set the URL - use preview endpoint by default to avoid OOM on
-            # memory-constrained devices. getContentUrl() upgrades to original
-            # or fullsize when display hints indicate it's safe.
-            if server_url:
-                image.url = f"{server_url}/api/assets/{asset_id}/thumbnail?size=preview"
-            
-            # Set filename if available
+
+            if api_base:
+                image.url = f'{api_base}/assets/{asset_id}/thumbnail?size=preview'
+
             original_filename = asset.get('originalFileName')
             if original_filename:
                 image.setFilename(original_filename)
-            
-            # Set dimensions - BaseService uses this for orientation checks
+
             exif_info = asset.get('exifInfo', {}) or {}
             width = exif_info.get('exifImageWidth')
             height = exif_info.get('exifImageHeight')
-            
-            # If EXIF dimensions aren't available, check asset level
+
             if not width or not height:
                 width = asset.get('width')
                 height = asset.get('height')
-            
+
             if width and height:
                 try:
                     image.setDimensions(int(width), int(height))
-                    # Also set the dimensions dict that BaseService expects
-                    image.dimensions = {'width': int(width), 'height': int(height)}
                 except (ValueError, TypeError):
-                    logging.debug(f'Asset {i+1}: invalid dimensions for {asset_id}')
-            
-            # Enable caching
+                    logging.debug(f'Asset {i + 1}: invalid dimensions for {asset_id}')
+
             image.allowCache(True)
-            
-            # Set source URL for UI display
+
             if server_url:
-                image.source = f"{server_url}/photos/{asset_id}"
-            
+                image.source = f'{server_url}/photos/{asset_id}'
+
             result.append(image)
             logging.debug(f'Added asset {asset_id} ({mime_type}) with dimensions {width}x{height}')
-        
+
         logging.info(f'Parsed {len(result)} supported images from {len(data)} total assets')
         return result
 
     def getContentUrl(self, image, hints):
-        config = self.getImmichConfiguration()
-        if not config or 'server_url' not in config:
+        api_base = self._getApiBaseUrl()
+        if not api_base:
             return None
         asset_id = image.id
         if not asset_id:
@@ -425,7 +601,7 @@ class Immich(BaseService):
                 else:
                     endpoint = 'thumbnail?size=fullsize'
 
-        return f"{config['server_url']}/api/assets/{asset_id}/{endpoint}"
+        return f'{api_base}/assets/{asset_id}/{endpoint}'
 
     def _canProcessFullRes(self, width, height):
         estimated_mb = (width * height * 20) / (1024 * 1024)
@@ -444,42 +620,47 @@ class Immich(BaseService):
         return 0
 
     def requestUrl(self, url, destination=None, params=None, data=None, usePost=False):
-        """Override to add Immich authentication headers"""
+        """Override to add Immich authentication headers."""
         config = self.getImmichConfiguration()
-        
-        # Check if this is an Immich URL that needs authentication
+
         if config and 'server_url' in config and url and url.startswith(config['server_url']):
             headers = {'x-api-key': config['api_key']}
-            
+
             tries = 0
             while tries < 5:
                 try:
-                    if usePost:
-                        r = requests.post(url, params=params, json=data, headers=headers, timeout=180)
-                    else:
-                        r = requests.get(url, params=params, headers=headers, timeout=180, stream=True)
+                    method = 'POST' if usePost else 'GET'
+                    r = requests.request(
+                        method,
+                        url,
+                        params=params,
+                        json=data,
+                        headers=headers,
+                        timeout=180,
+                        stream=not usePost
+                    )
                     break
-                except Exception as e:
+                except requests.exceptions.RequestException as e:
                     logging.exception(f'Issues downloading from Immich (attempt {tries + 1})')
                     if tries == 4:
-                        raise RequestNoNetwork(f'Failed to connect to Immich')
-                
+                        raise RequestNoNetwork(f'Failed to connect to Immich: {e}')
+
                 time.sleep(tries * 10)
                 tries += 1
                 logging.warning(f'Retrying Immich request, attempt #{tries + 1}')
-            
+
             if tries == 5:
                 logging.error('Failed to download from Immich due to network issues')
                 raise RequestNoNetwork('Network timeout')
-            
+
             result = RequestResult()
             result.setHTTPCode(r.status_code).setHeaders(r.headers).setResult(RequestResult.SUCCESS)
-            
+
             if r.status_code != 200:
                 logging.error(f'Immich returned status {r.status_code} for {url}')
-                result.setResult(RequestResult.GENERAL_ERROR)
+                result.setResult(RequestResult.UNKNOWN)
                 return result
-            
+
             if destination is None:
                 result.setContent(r.content)
             else:
@@ -489,10 +670,9 @@ class Immich(BaseService):
                             f.write(chunk)
                 result.setFilename(destination)
                 logging.info(f'Downloaded Immich asset to {destination}')
-            
+
             return result
-        
-        # Not an Immich URL, use parent's implementation
+
         return BaseService.requestUrl(self, url, destination, params, data, usePost)
 
     # ------------------ Misc ------------------
@@ -514,7 +694,7 @@ class Immich(BaseService):
         if result is not None:
             return result
         return BaseService.createImageHolder(self).setError('Immich service ready.\nReal photo retrieval available for configured albums.')
-    
+
     def selectNextImageFromAlbum(self, destinationDir, supportedMimeTypes, displaySize):
         result = BaseService.selectNextImageFromAlbum(self, destinationDir, supportedMimeTypes, displaySize)
         if result is not None:
@@ -523,10 +703,14 @@ class Immich(BaseService):
 
     def getMessages(self):
         msgs = BaseService.getMessages(self)
-        if self.hasConfiguration():
+        if self.hasImmichConfiguration():
+            api_info = self._STATE.get(self.API_INFO_STATE_KEY)
+            api_label = ''
+            if api_info:
+                api_label = f' Detected Immich API v{api_info.get("api_version")}.'
             msgs.append({
                 'level': 'INFO',
-                'message': 'Immich service configured and ready. Photo retrieval available for added albums.',
+                'message': f'Immich service configured and ready. Photo retrieval available for added albums.{api_label}',
                 'link': None
             })
         return msgs

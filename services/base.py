@@ -203,9 +203,10 @@ class BaseService:
       for keyword in self.getKeywords():
         if keyword not in self._STATE["_NUM_IMAGES"] or keyword not in self._STATE['_NEXT_SCAN'] or self._STATE['_NEXT_SCAN'][keyword] < time.time():
           logging.debug('Keywords either not scanned or we need to scan now')
-          self._getImagesFor(keyword) # Will make sure to get images
-          self._STATE['_NEXT_SCAN'][keyword] = time.time() + self.REFRESH_DELAY
-        sum = sum + self._STATE["_NUM_IMAGES"][keyword]  
+          images = self._getImagesFor(keyword) # Will make sure to get images
+          if images is None:
+            continue
+        sum = sum + self._STATE["_NUM_IMAGES"].get(keyword, 0)
     return sum
 
   def getImagesSeen(self):
@@ -501,6 +502,7 @@ class BaseService:
     images = self.getImagesFor(keyword)
     if images is None:
       logging.warning('Function returned None, this is used sometimes when a temporary error happens. Still logged')
+      return None
 
     if images is not None and len(images) > 0:
       self._STATE["_NUM_IMAGES"][keyword] = len(images)
@@ -618,11 +620,11 @@ class BaseService:
 
       try:
         result = self.requestUrl(url, destination=filename)
-      except (RequestResult.RequestExpiredToken, RequestInvalidToken):
+      except (RequestExpiredToken, RequestInvalidToken):
         logging.exception('Cannot fetch due to token issues')
         result = RequestResult().setResult(RequestResult.OAUTH_INVALID)
         self._OAUTH = None
-      except requests.exceptions.RequestException:
+      except (requests.exceptions.RequestException, RequestNoNetwork):
         logging.exception('request to download image failed')
         result = RequestResult().setResult(RequestResult.NO_NETWORK)
 

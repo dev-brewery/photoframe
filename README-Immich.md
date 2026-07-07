@@ -10,6 +10,7 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 
 - **Direct Server Connection**: Connect PhotoFrame directly to your Immich server using API authentication
 - **Album-Based Display**: Select specific albums to display as keywords
+- **Immich v2/v3 Support**: Automatically detects the Immich server API version and uses the compatible album/photo retrieval path
 - **Self-Hosted Privacy**: Keep your photos on your own server - no cloud services required
 - **Web-Based Configuration**: Easy setup through PhotoFrame's web interface
 
@@ -43,6 +44,7 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 - `api_key`: The API key you generated in Step 1
 - **No trailing slashes** in the server URL
 - Ensure your PhotoFrame can reach your Immich server (network connectivity)
+- No API version setting is needed. PhotoFrame detects Immich v2 or v3 automatically.
 
 ### Step 3: Add Keywords (Albums)
 
@@ -87,6 +89,7 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 - Check that the albums contain photos
 - Ensure your API key has permission to access those albums
 - Album names are case-sensitive
+- If this started immediately after an Immich upgrade, restart PhotoFrame or clear memory/cache so the service re-detects the Immich API version and refreshes album indexes
 
 ### Network Issues
 - If using HTTPS, ensure SSL certificates are valid
@@ -110,8 +113,10 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 
 The Immich integration:
 - Uses Immich's REST API for authentication and photo retrieval
+- Supports Immich v2 and v3 API layouts through lightweight runtime detection
 - Follows PhotoFrame's standard service pattern (`CONFIG` → `NEED_KEYWORDS` → `READY`)
 - Integrates with PhotoFrame's existing caching and display pipeline
 - Supports multiple Immich servers (add multiple services)
+- Avoids generated API clients and heavy dependencies so the integration remains suitable for Raspberry Pi Zero W devices
 
 For developers: The implementation is in `services/svc_immich.py` and uses the `needImmichConfig=True` flag to enable special configuration handling through the `/service/{id}/immichconfig` endpoint.
