@@ -20,6 +20,7 @@ import os
 import socket
 import logging
 import atexit
+import glob
 
 class shutdown(Thread):
 	@staticmethod
@@ -45,6 +46,30 @@ class shutdown(Thread):
 		logging.info('No color sensor detected, using GPIO 3 for shutdown')
 		return 3
 
+	@staticmethod
+	def _sysfs_chip():
+		"""Return (base, ngpio) for the SoC's GPIO chip in sysfs.
+
+		Newer kernels do not number the SoC's GPIO chip from 0, so a BCM pin
+		number has to be offset by the chip's base to get its sysfs number.
+		base is the sysfs number of the chip's first pin and ngpio is the
+		number of pins on the chip. Returns (0, None) if no pinctrl chip is
+		found or its files cannot be read.
+		"""
+		try:
+			for chip in sorted(glob.glob('/sys/class/gpio/gpiochip*')):
+				with open(os.path.join(chip, 'label'), 'r') as f:
+					label = f.read().strip()
+				if label.startswith('pinctrl-'):
+					with open(os.path.join(chip, 'base'), 'r') as f:
+						base = int(f.read().strip())
+					with open(os.path.join(chip, 'ngpio'), 'r') as f:
+						ngpio = int(f.read().strip())
+					return (base, ngpio)
+		except Exception:
+			pass
+		return (0, None)
+
 	def __init__(self, usePIN=26):
 		Thread.__init__(self)
 		self.daemon = True
@@ -63,24 +88,34 @@ class shutdown(Thread):
 
 	def run(self):
 		logging.info(f'GPIO shutdown can be triggered by GPIO {self.gpio}')
+		try:
+			pin = int(str(self.gpio))
+		except (TypeError, ValueError):
+			logging.warning(f'Shutdown pin {self.gpio!r} is not a whole number, GPIO shutdown is not monitored')
+			return
+		base, ngpio = self._sysfs_chip()
+		if pin < 0 or (ngpio is not None and pin >= ngpio):
+			logging.warning(f'Shutdown pin {pin} is outside the GPIO chip range, GPIO shutdown is not monitored')
+			return
+		sysfs_gpio = base + pin
 		poller = select.poll()
 		try:
 			with open('/sys/class/gpio/export', 'wb') as f:
-				f.write(str(self.gpio).encode('utf-8'))
+				f.write(str(sysfs_gpio).encode('utf-8'))
 		except:
 			# Usually it means we ran this before
 			pass
 		try:
-			with open(f'/sys/class/gpio/gpio{self.gpio}/direction', 'wb') as f:
+			with open(f'/sys/class/gpio/gpio{sysfs_gpio}/direction', 'wb') as f:
 				f.write(b'in')
 		except:
 			logging.warn('Either no GPIO subsystem or no access')
 			return
-		with open(f'/sys/class/gpio/gpio{self.gpio}/edge', 'wb') as f:
+		with open(f'/sys/class/gpio/gpio{sysfs_gpio}/edge', 'wb') as f:
 			f.write(b'both')
-		with open(f'/sys/class/gpio/gpio{self.gpio}/active_low', 'wb') as f:
+		with open(f'/sys/class/gpio/gpio{sysfs_gpio}/active_low', 'wb') as f:
 			f.write(b'1')
-		with open(f'/sys/class/gpio/gpio{self.gpio}/value', 'rb') as f:
+		with open(f'/sys/class/gpio/gpio{sysfs_gpio}/value', 'rb') as f:
 			f.read()
 			poller.register(f, select.POLLPRI)
 			poller.register(self.server, select.POLLHUP)
