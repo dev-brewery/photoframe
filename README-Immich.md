@@ -26,10 +26,10 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 ### Step 2: Configure PhotoFrame
 
 1. Open PhotoFrame's web interface (usually `http://your-pi-ip:7777`)
-2. Log in with your credentials (default: `photoframe` / `password`)
-3. Click **Services** in the navigation
-4. Click **Add Service** and select **Immich**
-5. Upload a JSON configuration file or create one with this format:
+2. If it asks for a login, use your web UI credentials (the SD card image's default is `photoframe` / `password`; see [web UI login](README.md#web-ui-login))
+3. At the bottom of the page, select **Immich** in the dropdown and click **Add photo provider**
+4. Give the service a name when asked
+5. Give it your server details in one of two ways: click **Enter Credentials** and fill in the server URL and API key, or click **Upload Config** and choose a JSON file in this format:
 
 ```json
 {
@@ -41,15 +41,17 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 **Important Configuration Notes:**
 - `server_url`: The full URL to your Immich server (include `https://` or `http://`)
 - `api_key`: The API key you generated in Step 1
-- **No trailing slashes** in the server URL
+- A single trailing slash on the server URL is removed for you
 - Ensure your PhotoFrame can reach your Immich server (network connectivity)
 
 ### Step 3: Add Keywords (Albums)
 
-1. After configuration, the service will move to **NEED_KEYWORDS** state
-2. Click **Keywords** next to your Immich service
-3. Add album names as keywords (case-sensitive)
-4. The service will fetch photos from these albums
+1. Once the configuration is accepted, the Immich service shows a text box with **Help**, **Browse** and **Add** buttons
+2. Click **Browse** to pick from the albums on your server, or type an album name into the text box
+3. Click **Add**. The service will fetch photos from that album
+4. Repeat for each album you want shown
+
+An album name is matched exactly first. If there is no exact match, it is matched ignoring upper and lower case. An album can only be added once.
 
 ### Common Configuration Examples
 
@@ -79,14 +81,14 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 ### Service Shows "Error" State
 - Verify PhotoFrame can reach your Immich server (try the URL in a browser)
 - Check that your API key is still valid in Immich settings
-- Ensure the server URL is correct (no trailing slashes)
+- Ensure the server URL is correct
 - Check PhotoFrame's debug logs for detailed error messages
 
 ### No Photos Displayed
 - Verify the album names you added as keywords exist in Immich
 - Check that the albums contain photos
 - Ensure your API key has permission to access those albums
-- Album names are case-sensitive
+- Use **Browse** to see the album names the server reports
 
 ### Network Issues
 - If using HTTPS, ensure SSL certificates are valid
@@ -95,8 +97,6 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 
 ## Current Limitations
 
-- **Album names must match exactly** (case-sensitive)
-- **No automatic album discovery** - you must specify album names as keywords
 - **No video support** - only displays images from albums
 
 ## Security Notes
