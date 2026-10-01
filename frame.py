@@ -59,9 +59,9 @@ if cmdline.basedir is None:
   cmdline.basedir = os.environ.get('PHOTOFRAME_BASEDIR')
 
 if cmdline.debug:
-  logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+  logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', force=True)
 else:
-  logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+  logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', force=True)
 
 class Photoframe:
   def __init__(self, cmdline):
