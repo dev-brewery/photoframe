@@ -29,7 +29,6 @@ class RouteOAuthLink(BaseRoute):
         self.addUrl('/service/<service>/oauth').clearMethods().addMethod('POST')
 
     def handle(self, app, **kwargs):
-      print(self.getRequest().url)
       if '/callback?' in self.getRequest().url:
           # Figure out who should get this result...
           old = self.servicemgr.hasReadyServices()
