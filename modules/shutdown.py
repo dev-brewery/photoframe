@@ -47,12 +47,14 @@ class shutdown(Thread):
 		return 3
 
 	@staticmethod
-	def _sysfs_base():
-		"""Return the sysfs number of the first pin on the SoC's GPIO chip.
+	def _sysfs_chip():
+		"""Return (base, ngpio) for the SoC's GPIO chip in sysfs.
 
 		Newer kernels do not number the SoC's GPIO chip from 0, so a BCM pin
 		number has to be offset by the chip's base to get its sysfs number.
-		Returns 0 if no pinctrl chip is found or its files cannot be read.
+		base is the sysfs number of the chip's first pin and ngpio is the
+		number of pins on the chip. Returns (0, None) if no pinctrl chip is
+		found or its files cannot be read.
 		"""
 		try:
 			for chip in sorted(glob.glob('/sys/class/gpio/gpiochip*')):
@@ -60,10 +62,13 @@ class shutdown(Thread):
 					label = f.read().strip()
 				if label.startswith('pinctrl-'):
 					with open(os.path.join(chip, 'base'), 'r') as f:
-						return int(f.read().strip())
+						base = int(f.read().strip())
+					with open(os.path.join(chip, 'ngpio'), 'r') as f:
+						ngpio = int(f.read().strip())
+					return (base, ngpio)
 		except Exception:
 			pass
-		return 0
+		return (0, None)
 
 	def __init__(self, usePIN=26):
 		Thread.__init__(self)
@@ -84,10 +89,15 @@ class shutdown(Thread):
 	def run(self):
 		logging.info(f'GPIO shutdown can be triggered by GPIO {self.gpio}')
 		try:
-			sysfs_gpio = self._sysfs_base() + int(str(self.gpio))
+			pin = int(str(self.gpio))
 		except (TypeError, ValueError):
-			logging.warning(f'Shutdown pin {self.gpio!r} is not a number, GPIO shutdown is not monitored')
+			logging.warning(f'Shutdown pin {self.gpio!r} is not a whole number, GPIO shutdown is not monitored')
 			return
+		base, ngpio = self._sysfs_chip()
+		if pin < 0 or (ngpio is not None and pin >= ngpio):
+			logging.warning(f'Shutdown pin {pin} is outside the GPIO chip range, GPIO shutdown is not monitored')
+			return
+		sysfs_gpio = base + pin
 		poller = select.poll()
 		try:
 			with open('/sys/class/gpio/export', 'wb') as f:
