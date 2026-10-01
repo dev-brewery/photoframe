@@ -6,6 +6,10 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 
 [Immich](https://immich.app/) is a self-hosted photo and video backup solution, similar to Google Photos but running on your own server. This integration allows PhotoFrame to connect to your Immich server and display your photos.
 
+## Supported Immich versions
+
+photoframe 3.0.0 supports Immich v2.x servers. Immich v3 is not supported in this release; support is planned for photoframe 3.1.
+
 ## Features
 
 - **Direct Server Connection**: Connect PhotoFrame directly to your Immich server using API authentication
