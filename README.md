@@ -52,7 +52,7 @@ chmod +x install.sh
 
 The installer handles all dependencies, service setup, and auto-update configuration. After installation, the web UI is available at `http://<your-pi-ip>:7777`.
 
-Default credentials: `photoframe` / `password` (change via `http-auth.json` in `/root/photoframe_config/`)
+A script install has no web UI login: anyone on your network can open the page. To add one, see [web UI login](#web-ui-login).
 
 ### Option 2: SD card image (recommended for first-time users)
 
@@ -104,7 +104,9 @@ sudo usermod -aG sudo yourname
 sudo deluser --remove-home photoframe
 ```
 
-The default web UI credentials (separate from SSH) are `photoframe` / `password` — change them via `http-auth.json` in `/root/photoframe_config/` or through the web UI.
+The web UI has its own login, separate from SSH. On the image it is `photoframe` / `password`, stored in `http-auth.json` on the boot partition. See [web UI login](#web-ui-login) for how to change it.
+
+The image's time zone is `Europe/London`. Choose your own under **Time zone** on the web UI, so that the scheduled on and off hours match your clock.
 
 ### Option 3: Manual install
 
@@ -114,12 +116,33 @@ See [MANUAL.md](MANUAL.md) for a step-by-step walkthrough that mirrors what `ins
 
 If you're running the original mrworf version, see [MIGRATION.md](MIGRATION.md) for step-by-step instructions to switch to this fork.
 
+## web UI login
+
+The web UI uses HTTP basic authentication when it finds a file named `http-auth.json`:
+
+```json
+{"user": "photoframe", "password": "password"}
+```
+
+At startup photoframe looks in these places, in this order, and uses the first file that has both keys:
+
+1. `/boot/http-auth.json`
+2. `/boot/firmware/http-auth.json`
+3. `/root/photoframe_config/http-auth.json`
+
+If it finds none, the web UI has no login and the log says `No http-auth.json found, disabling http authentication`.
+
+- **SD card image:** ships `/boot/firmware/http-auth.json` with `photoframe` / `password`. Change it by editing that file, either on the Pi or as `http-auth.json` on the `bootfs` partition with the card in your computer. A file in `/root/photoframe_config/` is not used while the boot-partition file exists.
+- **`install.sh` and manual installs:** no file is created. Create `/root/photoframe_config/http-auth.json` yourself.
+
+The file is read when the service starts, so restart after changing it: `sudo systemctl restart frame.service`.
+
 ## quick start with Immich
 
 1. Open the web UI at `http://<your-pi-ip>:7777`
-2. Select **Immich** from the dropdown and click **Add photo service**
-3. Upload a JSON config with your server URL and API key (see [README-Immich.md](README-Immich.md))
-4. Add album names as keywords
+2. Select **Immich** from the dropdown and click **Add photo provider**
+3. Click **Enter Credentials** and give your server URL and API key, or upload them as a JSON file (see [README-Immich.md](README-Immich.md))
+4. Click **Browse** to pick an album, then **Add**
 
 For detailed Immich setup instructions, see [README-Immich.md](README-Immich.md).
 
@@ -142,8 +165,8 @@ Photoframe can adjust image color temperature to match room lighting using a TCS
 Wiring:
 ```
 3.3V -> Pin 1 (3.3V)
-SDA  -> Pin 3 (GPIO 0)
-SCL  -> Pin 5 (GPIO 1)
+SDA  -> Pin 3 (GPIO 2)
+SCL  -> Pin 5 (GPIO 3)
 GND  -> Pin 9 (GND)
 ```
 
@@ -159,7 +182,22 @@ Using the same sensor, set a light threshold and duration in the web UI. If ambi
 
 ## power on/off
 
-Photoframe listens on GPIO 26 (configurable) for power control. Connect a momentary switch between pin 37 (GPIO 26) and pin 39 (GND) for graceful shutdown and power on.
+Photoframe watches one GPIO pin and shuts the Pi down cleanly when a momentary switch connects that pin to ground.
+
+The pin is the **GPIO to monitor for shutdown interrupts** setting on the web UI. A new install starts on `auto`, which chooses the pin each time the service starts:
+
+| Color sensor (TCS34725) | Pin used | Wire the switch between |
+|-------------------------|----------|-------------------------|
+| Not found | GPIO 3 | pin 5 (GPIO 3) and pin 6 (GND) |
+| Found | GPIO 26 | pin 37 (GPIO 26) and pin 39 (GND) |
+
+GPIO 3 is the sensor's I2C clock line, which is why a frame with the sensor uses GPIO 26 instead. Connecting GPIO 3 to ground is also what wakes a halted Raspberry Pi on models that have that feature, so there the same switch turns the frame back on. GPIO 26 only shuts it down.
+
+A frame that already has a pin number saved keeps that number. The settings page accepts only numbers, so to go back to `auto` use the API (add `-u <user>:<password>` if the web UI has a login):
+
+```bash
+curl -X PUT http://<pi-ip>:7777/setting/shutdown-pin/auto
+```
 
 ## FAQ
 

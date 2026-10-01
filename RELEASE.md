@@ -10,19 +10,25 @@ Every photoframe release is paired 1:1 with a [`dev-brewery/pi-gen`](https://git
 
 ## Per-release steps (photoframe side)
 
+Every release has a **release branch** and a **tag**. The branch is named like the tag without the leading `v`: tag `v3.0.0-rc2` goes with branch `3.0.0-rc2`. The branch is what frames follow: the image's copy of photoframe is checked out on it, and `update.sh` pulls whatever lands on the branch a frame is on. The tag marks the commit the image was built from.
+
 For each release `vX.Y.Z[-rcN]`:
 
 1. Land all in-scope work on `dev`.
-2. Cut the paired pi-gen tag first — follow pi-gen's RELEASE.md. That step also bumps `config.example`'s `PHOTOFRAME_BRANCH` to the new photoframe tag name, so a manual `git clone --branch <tag> pi-gen && ./build-docker.sh` reproduces this release's image without overrides. The bump and tag must happen in the same commit: a pi-gen tag whose `config.example` still names the previous release breaks reproducibility **and corrupts CI builds too** — pi-gen's `stage2/04-photoframe/01-run.sh` runs `git checkout ${PHOTOFRAME_BRANCH}` inside the rootfs even when CI passes `PHOTOFRAME_SRC`, so a stale `PHOTOFRAME_BRANCH` in `config.example` either fails the checkout or silently ships the wrong commit.
-3. Tag photoframe at the exact `dev` commit being released. Fetch first so the local `origin/dev` ref is fresh, then pin the SHA so the tag isn't at the mercy of whatever lands on `dev` between reading the docs and running the commands:
+2. Create the release branch at the `dev` commit being released, push it, and lock it on GitHub (branch protection with "Lock branch") so it is read-only. Fetch first so the local `origin/dev` ref is fresh, then pin the SHA so the branch isn't at the mercy of whatever lands on `dev` between reading the docs and running the commands:
    ```bash
    git fetch origin dev
    SHA=$(git rev-parse origin/dev)   # pin the release commit
+   git push origin "$SHA":refs/heads/X.Y.Z
+   ```
+3. Cut the paired pi-gen tag — follow pi-gen's RELEASE.md. That step also bumps `config.example`'s `PHOTOFRAME_BRANCH` to the new release **branch** name, so a manual `git clone --branch <tag> pi-gen && ./build-docker.sh` reproduces this release's image without overrides. The bump and tag must happen in the same commit. In the `v3.0.0-rc2` build, pi-gen's `stage2/04-photoframe/01-run.sh` cloned photoframe from GitHub at `PHOTOFRAME_BRANCH`; it did not use the tree the workflow had checked out at the tag. So a pi-gen tag whose `config.example` still names the previous release ships the previous release's code, and a branch name that does not exist on GitHub cannot be cloned at all.
+4. Tag photoframe at the head of the release branch, the same commit pinned in step 2:
+   ```bash
    git tag -a vX.Y.Z -m 'release vX.Y.Z' "$SHA"
    git push origin vX.Y.Z
    ```
-4. Tag push fires `build-image.yml`, which checks out pi-gen at the matching tag, builds the LITE image, and attaches it to the auto-created GitHub release.
-5. Verify the release page has the `image_YYYY-MM-DD-photoframe-vX.Y.Z-lite.zip` artifact before announcing (pi-gen prepends the build date to `IMG_NAME`, so the filename includes the date the runner produced it).
+5. Tag push fires `build-image.yml`, which checks out pi-gen at the matching tag, builds the LITE image, and attaches it to the auto-created GitHub release.
+6. Verify the release page has the `image_YYYY-MM-DD-photoframe-vX.Y.Z-lite.zip` artifact before announcing (pi-gen prepends the build date to `IMG_NAME`, so the filename includes the date the runner produced it).
 
 ## Manual dispatch
 

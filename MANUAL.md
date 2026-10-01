@@ -151,10 +151,21 @@ reboot
 Done! Once the device has rebooted, the photoframe web UI is hosted on
 port 7777. Find the Pi's IP address (check your router's DHCP table or
 try `ping raspberrypi.local` if your network supports mDNS), then open
-`http://<pi-ip>:7777` in your browser. The default web UI credentials
-are `photoframe` / `password` (change via `http-auth.json` in
-`/root/photoframe_config/`). Choose your photo service (Immich is the
-supported default; Google Photos is deprecated) and follow the prompts.
+`http://<pi-ip>:7777` in your browser. Choose your photo service
+(Immich is the supported default; Google Photos is deprecated) and
+follow the prompts.
+
+A manual install has no web UI login: anyone on your network can open
+the page. To add one, create `/root/photoframe_config/http-auth.json`
+with a user name and password of your choice:
+
+```
+{"user": "photoframe", "password": "choose-your-own"}
+```
+
+Then restart the service (`sudo systemctl restart frame.service`). The
+README's `web UI login` section lists every place photoframe looks for
+this file.
 
 # wifi setup
 
@@ -286,7 +297,11 @@ branch `bookworm-photoframe`. It does everything this guide does, plus:
 
 - Bakes in the `photoframe` / `photoframe` default user (change
   immediately via `passwd` on first login)
+- Ships a web UI login of `photoframe` / `password` in
+  `/boot/firmware/http-auth.json`
 - Ships with `WPA_COUNTRY=US` as the default regulatory domain
+- Leaves the time zone at `Europe/London` until you choose your own
+  on the web UI
 - Provides a `wifi-config.txt` file on the boot partition you can edit
   on Windows before first boot for headless WiFi setup
 - Skips the stage3/4/5 desktop builds that would conflict with
@@ -311,18 +326,22 @@ automation integration (Home Assistant, Domoticz, etc.):
 
 ```bash
 # Turn screen off
-curl -u photoframe:password http://<pi-ip>:7777/control/screenoff
+curl -u <user>:<password> http://<pi-ip>:7777/control/screenoff
 
 # Turn screen on
-curl -u photoframe:password http://<pi-ip>:7777/control/screenon
+curl -u <user>:<password> http://<pi-ip>:7777/control/screenon
 ```
 
-These endpoints respect the HTTP authentication configured in
-`/root/photoframe_config/http-auth.json`. Both return JSON:
+These endpoints use the web UI login when one is configured (see the
+README's `web UI login` section); leave out `-u` when there is none.
+Both return JSON:
 `{"screen": "on", "success": true}` or `{"screen": "off", "success": true}`.
 
-**Note:** This is API groundwork for a future persistent manual override
-feature. Currently, schedule and ambient light sensor rules continue to
-run and may revert the display state on the next evaluation cycle (up to
-60 seconds). A future release will add the ability to hold a manual
-override until explicitly cleared.
+**Note:** a manual change is not a permanent override. It lasts until
+the schedule or the ambient light sensor next changes state (for
+example at the next configured on or off hour) or until the
+power-saving setting is changed. The power-saving rules that are in
+use are then applied again: a screen that is off is turned back on
+unless one of them currently calls for it to be off, and a screen that
+is on is turned off if one of them does. There is no way yet to hold a
+manual change until it is explicitly cleared.

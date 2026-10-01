@@ -14,7 +14,27 @@ Your existing configuration (`/root/photoframe_config/`) is preserved during mig
 
 ## Scenario A: Existing git-based install
 
-If you installed photoframe by cloning the repo to `/root/photoframe`:
+If you installed photoframe by cloning the repo to `/root/photoframe`, you can use the migration script or do the same steps by hand.
+
+### With the migration script
+
+```bash
+sudo su -
+wget -O /root/migrate-from-mrworf.sh https://raw.githubusercontent.com/dev-brewery/photoframe/3.0.0/migrate-from-mrworf.sh
+bash /root/migrate-from-mrworf.sh
+```
+
+The script:
+
+1. Stops `frame.service` if it is running
+2. Saves `/root/photoframe_config` as `/root/photoframe_config.backup.<date-time>.tar.gz`
+3. Points the `origin` remote at this fork and checks out the `3.0.0` release branch
+4. Installs the system and Python packages the fork needs
+5. Installs the service file and starts the service
+
+It can be run again without harm. If photoframe is not in `/root/photoframe`, set `REPO_DIR`, for example `REPO_DIR=/home/pi/photoframe bash /root/migrate-from-mrworf.sh`.
+
+### By hand
 
 ```bash
 # 1. Stop the service
@@ -27,7 +47,7 @@ cp -r /root/photoframe_config /root/photoframe_config.bak
 cd /root/photoframe
 git remote set-url origin https://github.com/dev-brewery/photoframe.git
 git fetch origin
-git checkout master
+git checkout 3.0.0
 git pull
 
 # 4. Install Python 3 dependencies
@@ -89,7 +109,7 @@ See [README-Immich.md](README-Immich.md) for detailed setup and troubleshooting.
 
 ## Automatic updates
 
-The fork uses the same `update.sh` auto-update mechanism. If you had a cron job for updates, it will continue to work after changing the git remote. If not, add one:
+The fork uses the same `update.sh` auto-update mechanism. It follows the branch your install is on: after the migration above that is `3.0.0`, so the frame receives whatever is published to that branch. If you had a cron job for updates, it will continue to work after changing the git remote. If not, add one:
 
 ```bash
 echo "15 3 * * * root /root/photoframe/update.sh" >> /etc/crontab
