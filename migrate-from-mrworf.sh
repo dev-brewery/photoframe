@@ -11,7 +11,7 @@ set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-/root/photoframe}"
 TARGET_REMOTE="https://github.com/dev-brewery/photoframe.git"
-TARGET_BRANCH="${TARGET_BRANCH:-clean_3x}"
+TARGET_BRANCH="${TARGET_BRANCH:-3.0.0}"
 
 echo "=== dev-brewery/photoframe migration ==="
 echo "Repo:    $REPO_DIR"
