@@ -84,7 +84,7 @@ class shutdown(Thread):
 	def run(self):
 		logging.info(f'GPIO shutdown can be triggered by GPIO {self.gpio}')
 		try:
-			sysfs_gpio = self._sysfs_base() + int(self.gpio)
+			sysfs_gpio = self._sysfs_base() + int(str(self.gpio))
 		except (TypeError, ValueError):
 			logging.warning(f'Shutdown pin {self.gpio!r} is not a number, GPIO shutdown is not monitored')
 			return
