@@ -20,6 +20,7 @@ import os
 import socket
 import logging
 import atexit
+import glob
 
 class shutdown(Thread):
 	@staticmethod
@@ -45,6 +46,25 @@ class shutdown(Thread):
 		logging.info('No color sensor detected, using GPIO 3 for shutdown')
 		return 3
 
+	@staticmethod
+	def _sysfs_base():
+		"""Return the sysfs number of the first pin on the SoC's GPIO chip.
+
+		Newer kernels do not number the SoC's GPIO chip from 0, so a BCM pin
+		number has to be offset by the chip's base to get its sysfs number.
+		Returns 0 if no pinctrl chip is found or its files cannot be read.
+		"""
+		try:
+			for chip in sorted(glob.glob('/sys/class/gpio/gpiochip*')):
+				with open(os.path.join(chip, 'label'), 'r') as f:
+					label = f.read().strip()
+				if label.startswith('pinctrl-'):
+					with open(os.path.join(chip, 'base'), 'r') as f:
+						return int(f.read().strip())
+		except Exception:
+			pass
+		return 0
+
 	def __init__(self, usePIN=26):
 		Thread.__init__(self)
 		self.daemon = True
@@ -63,24 +83,25 @@ class shutdown(Thread):
 
 	def run(self):
 		logging.info(f'GPIO shutdown can be triggered by GPIO {self.gpio}')
+		sysfs_gpio = self._sysfs_base() + self.gpio
 		poller = select.poll()
 		try:
 			with open('/sys/class/gpio/export', 'wb') as f:
-				f.write(str(self.gpio).encode('utf-8'))
+				f.write(str(sysfs_gpio).encode('utf-8'))
 		except:
 			# Usually it means we ran this before
 			pass
 		try:
-			with open(f'/sys/class/gpio/gpio{self.gpio}/direction', 'wb') as f:
+			with open(f'/sys/class/gpio/gpio{sysfs_gpio}/direction', 'wb') as f:
 				f.write(b'in')
 		except:
 			logging.warn('Either no GPIO subsystem or no access')
 			return
-		with open(f'/sys/class/gpio/gpio{self.gpio}/edge', 'wb') as f:
+		with open(f'/sys/class/gpio/gpio{sysfs_gpio}/edge', 'wb') as f:
 			f.write(b'both')
-		with open(f'/sys/class/gpio/gpio{self.gpio}/active_low', 'wb') as f:
+		with open(f'/sys/class/gpio/gpio{sysfs_gpio}/active_low', 'wb') as f:
 			f.write(b'1')
-		with open(f'/sys/class/gpio/gpio{self.gpio}/value', 'rb') as f:
+		with open(f'/sys/class/gpio/gpio{sysfs_gpio}/value', 'rb') as f:
 			f.read()
 			poller.register(f, select.POLLPRI)
 			poller.register(self.server, select.POLLHUP)
