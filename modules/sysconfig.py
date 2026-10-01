@@ -143,7 +143,7 @@ class sysconfig:
   @staticmethod
   def getHTTPAuth():
     user = None
-    userfiles = ['/boot/http-auth.json', f'{path.CONFIGFOLDER}/http-auth.json']
+    userfiles = ['/boot/http-auth.json', '/boot/firmware/http-auth.json', f'{path.CONFIGFOLDER}/http-auth.json']
     for userfile in userfiles:
       if os.path.exists(userfile):
         logging.debug(f'Found "{userfile}", loading the data')
