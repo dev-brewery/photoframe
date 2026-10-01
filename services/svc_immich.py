@@ -54,7 +54,7 @@ class Immich(BaseService):
         }
 
     def validateImmichConfiguration(self, config):
-        logging.info(f'Immich validateConfiguration called with config: {config}')
+        logging.info('Immich validateConfiguration called with keys: %s', sorted(config.keys()) if isinstance(config, dict) else type(config).__name__)
         if not config:
             return 'Configuration is required'
         if 'server_url' not in config or not config['server_url']:

@@ -310,7 +310,7 @@ class BaseService:
     if self._STATE['_OAUTH_CONTEXT'] is not None:
       logging.error('Cannot migrate token, already have one!')
       return
-    logging.debug(f'Setting token to {repr(token)}')
+    logging.debug('Setting OAuth token')
     self._STATE['_OAUTH_CONTEXT'] = token
     self.saveState()
 
