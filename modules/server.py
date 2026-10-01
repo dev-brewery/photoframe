@@ -61,7 +61,7 @@ class WebServer(Thread):
                     return self.user['password']
                 return None
         else:
-            logging.info('No http-auth.json found, disabling http authentication')
+            logging.warning('No http-auth.json found, disabling http authentication')
 
         # Set logging levels based on debug flag
         log_level = logging.DEBUG if debug else logging.ERROR
