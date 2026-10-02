@@ -43,6 +43,8 @@ It also has features like ambient color temperature adjustment, ambient light po
 On a clean Raspberry Pi OS (Bookworm or Bullseye):
 
 ```bash
+sudo apt-get update -y && sudo apt upgrade -y
+sudo apt install -y git
 sudo su -
 git clone https://github.com/dev-brewery/photoframe.git /root/photoframe
 cd /root/photoframe
