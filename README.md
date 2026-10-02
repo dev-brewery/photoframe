@@ -40,17 +40,19 @@ It also has features like ambient color temperature adjustment, ambient light po
 
 ### Option 1: Fresh install script (recommended for new setups)
 
-On a clean Raspberry Pi OS (Bookworm or Bullseye):
+On a clean Raspberry Pi OS (Bullseye, Bookworm or Trixie):
 
 ```bash
+sudo apt-get update -y && sudo apt upgrade -y
+sudo apt install -y git
 sudo su -
 git clone https://github.com/dev-brewery/photoframe.git /root/photoframe
 cd /root/photoframe
-chmod +x install.sh
 ./install.sh
+systemctl start frame.service
 ```
 
-The installer handles all dependencies, service setup, and auto-update configuration. After installation, the web UI is available at `http://<your-pi-ip>:7777`.
+The installer handles all dependencies, service setup, and auto-update configuration. It does not start the service; the last line above does, and it starts on its own at every boot from then on. The web UI is then available at `http://<your-pi-ip>:7777`.
 
 A script install has no web UI login: anyone on your network can open the page. To add one, see [web UI login](#web-ui-login).
 
