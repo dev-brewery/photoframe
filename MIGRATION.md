@@ -76,13 +76,14 @@ If you prefer a fresh start, download the latest image from the [releases page](
 
 ## Scenario C: Fresh install (no existing photoframe)
 
-Use the install script on a clean Raspberry Pi OS (Bookworm or Bullseye, 32-bit or 64-bit):
+Use the install script on a clean Raspberry Pi OS (Bullseye, Bookworm or Trixie, 32-bit or 64-bit):
 
 ```bash
+sudo apt-get update -y && sudo apt upgrade -y
+sudo apt install -y git
 sudo su -
 git clone https://github.com/dev-brewery/photoframe.git /root/photoframe
 cd /root/photoframe
-chmod +x install.sh
 ./install.sh
 systemctl start frame.service
 ```
