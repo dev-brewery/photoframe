@@ -84,7 +84,13 @@ Validator = function() {
 	}
 
 	this.gpio = function(input) {
+		// 'auto' picks the pin at startup: GPIO 26 with a colour sensor, GPIO 3 without.
+		// Anything that is not a GPIO number falls back to 'auto'.
+		if (String(input).trim().toLowerCase() == 'auto')
+			return 'auto';
 		i = parseInt(input);
+		if (isNaN(i))
+			return 'auto';
 		if (i < 0)
 			i = 0;
 		return i;
@@ -98,7 +104,8 @@ Confirmation = function() {
 		   msg += 'Changing this setting can be potentially dangerous.\n';
 		   msg += '\n';
 		   msg += 'If the designated GPIO is already used for something else, it might cause your\n';
-		   msg += 'device to shutdown at random. GPIO 3 is the default chosen for Raspberry Pi.\n';
+		   msg += 'device to shutdown at random. The default, auto, uses GPIO 26 when a colour\n';
+		   msg += 'sensor is attached and GPIO 3 otherwise.\n';
 		   msg += '\n';
 		   msg += 'Please make sure you select an UNUSED gpio pin for your device before you continue.\n';
 		   msg += '\n';

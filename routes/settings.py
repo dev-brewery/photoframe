@@ -48,6 +48,12 @@ class RouteSettings(BaseRoute):
         # Keywords has its own API
         self.setAbort(404)
         return
+      if key == 'shutdown-pin':
+        # 'auto' or a GPIO number; anything else would leave the button unmonitored
+        value = value.strip().lower()
+        if value != 'auto' and not value.isdigit():
+          self.setAbort(400)
+          return
       self.settingsMgr.setUser(key, value)
       if key in ['display-driver']:
         drv = self.settingsMgr.getUser('display-driver')
