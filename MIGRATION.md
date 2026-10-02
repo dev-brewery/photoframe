@@ -7,7 +7,7 @@ This guide covers migrating from the original [mrworf/photoframe](https://github
 - **Python 2 to Python 3** - new system packages required
 - **New photo service: Immich** - self-hosted alternative to Google Photos
 - **Google Photos deprecated** - Google removed the API ([details](GOOGLE_PHOTOS.md))
-- **Modern display detection** - tvservice replaced with KMS/DRM + fallback chain
+- **Display detection without tvservice** - where `tvservice` is missing, the display size is read from the framebuffer
 - **Picasa removed** - the service was already non-functional
 
 Your existing configuration (`/root/photoframe_config/`) is preserved during migration.
@@ -136,7 +136,7 @@ service frame stop
 /root/photoframe/frame.py --debug
 ```
 
-Look for `display` entries in the output. The detection order is: KMS/DRM, xrandr, fbset, tvservice.
+Look for `display` and `framebuffer` entries in the output. photoframe uses `tvservice` if it is installed; otherwise it reads the display size from the framebuffer with `fbset`.
 
 ### Configuration not preserved
 

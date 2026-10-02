@@ -16,7 +16,7 @@ It also has features like ambient color temperature adjustment, ambient light po
 - **Immich integration** - display photos from your self-hosted [Immich](https://immich.app/) server (recommended)
 - **HEIC/HEIF support** - display Apple photos without conversion issues
 - **Python 3** - modern, maintained codebase
-- **Modern display detection** - automatic fallback from KMS/DRM to xrandr to fbset to tvservice
+- **Works without tvservice** - on current Raspberry Pi OS, where `tvservice` is gone, the display size is read from the framebuffer; `tvservice` is still used where it exists
 - **Multi-architecture** - supports both 32-bit (armhf) and 64-bit (arm64) Raspberry Pi OS
 - Simple web interface for configuration (port 7777)
 - Google Photos search integration (deprecated due to API changes - [details](GOOGLE_PHOTOS.md))
@@ -153,7 +153,7 @@ For detailed Immich setup instructions, see [README-Immich.md](README-Immich.md)
 | Python version | Python 2 | **Python 3** |
 | Immich support | No | **Yes** |
 | HEIC/HEIF images | No | **Yes** |
-| Display detection | tvservice only | **KMS/DRM + xrandr + fbset + tvservice fallback** |
+| Display detection | tvservice only | **tvservice, or the framebuffer (`fbset`) where tvservice is missing** |
 | Pi 4/5 support | Limited | **Full (armhf + arm64)** |
 | Google Photos | Functional (pre-API change) | Deprecated (API removed by Google) |
 | Picasa Web | Present (non-functional) | Removed |
@@ -268,9 +268,15 @@ hdmi_cvt=1366 768 60 3 0 0 1
 
 Replace `1366 768` with your panel's native resolution. `hdmi_mode=87` is the "use custom CVT" slot that activates `hdmi_cvt`; `hdmi_force_hotplug=1` is required because most driver boards don't assert HPD. Reboot to apply.
 
+### The picture became enlarged and cut off after I re-plugged the HDMI cable
+
+Reboot the frame with the cable connected.
+
+Seen on a Raspberry Pi 4 on Bookworm: when the HDMI cable is unplugged and plugged back in while the frame is running, the Pi can fail to re-read the monitor's identification (EDID) and drops to 1024x768. photoframe keeps drawing at the size it found at startup, so the screen shows only the top-left part of each picture. A reboot reads the monitor again and restores the full picture. Tracked in [#97](https://github.com/dev-brewery/photoframe/issues/97).
+
 ### Are there logs?
 
-On Bookworm: `journalctl -u frame.service -f` (or the in-UI log viewer under **Settings**, which falls back to `journalctl` automatically when `/var/log/syslog` is absent — Bookworm Lite doesn't ship `rsyslog`).
+On Bookworm: `journalctl -u frame.service -f` (or the **Log report** button on the web UI, which falls back to `journalctl` automatically when `/var/log/syslog` is absent — Bookworm Lite doesn't ship `rsyslog`).
 
 On older releases that still have `rsyslog`: `/var/log/syslog` works too (search for `frame` or `photoframe`).
 
