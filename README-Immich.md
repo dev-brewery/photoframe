@@ -87,7 +87,7 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 ### No Photos Displayed
 - Verify the album names you added as keywords exist in Immich
 - Check that the albums contain photos
-- Ensure your API key has permission to access those albums
+- Ensure your API key has permission to access those albums[^immich-permissions]
 - Album names are case-sensitive
 - If this started immediately after an Immich upgrade, restart PhotoFrame or clear memory/cache so the service re-detects the Immich API version and refreshes album indexes
 
@@ -120,3 +120,14 @@ The Immich integration:
 - Avoids generated API clients and heavy dependencies so the integration remains suitable for Raspberry Pi Zero W devices
 
 For developers: The implementation is in `services/svc_immich.py` and uses the `needImmichConfig=True` flag to enable special configuration handling through the `/service/{id}/immichconfig` endpoint.
+
+[^immich-permissions]: Immich endpoints called by `services/svc_immich.py` and the API key permission each one needs:
+
+    | Endpoint | Where in the code | Permission |
+    |---|---|---|
+    | `GET /server/version` | `detect_immich_api`, lines 168-171 | not verified |
+    | `GET /albums` | `list_albums`, line 97 | not verified |
+    | `GET /albums/{id}` | Immich v2 album fetch, line 119 | not verified |
+    | `POST /search/large-assets` | Immich v3 album fetch, line 139 | not verified |
+    | `GET /assets/{id}/thumbnail?size=preview` or `?size=fullsize` | lines 552 and 591-604 | `asset.view` (verified) |
+    | `GET /assets/{id}/original` | displays wider than 1920 px, line 600 | not verified |
