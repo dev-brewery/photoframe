@@ -13,22 +13,20 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Install system dependencies
+# Install system dependencies.
+# Every package in requirements.txt is installed from apt. Raspberry Pi OS
+# Bookworm refuses system-wide pip installs (PEP 668), so pip is not used here.
 echo "Installing system dependencies..."
 apt-get update
 apt-get install -y \
     python3 python3-pip \
     python3-netifaces python3-flask python3-requests \
+    python3-oauthlib python3-requests-oauthlib python3-flask-httpauth \
     imagemagick fbset git bc \
     libjpeg-turbo-progs libheif-examples \
     openssh-server
 
-# Install Python pip dependencies
-echo "Installing Python dependencies..."
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -f "${SCRIPT_DIR}/requirements.txt" ]; then
-    pip3 install -r "${SCRIPT_DIR}/requirements.txt"
-fi
 
 # Create config directory
 mkdir -p /root/photoframe_config
