@@ -98,6 +98,8 @@ class Photoframe:
       # 'auto', or a value the settings page used to store by mistake (such as 'NaN')
       if str(shutdown_pin).strip().lower() != 'auto':
         logging.warning(f'Shutdown pin setting {shutdown_pin!r} is not auto or a GPIO number, using auto')
+        self.settingsMgr.setUser('shutdown-pin', 'auto')
+        self.settingsMgr.save()
       shutdown_pin = shutdown.detect_default_pin()
     self.powerMgr = shutdown(shutdown_pin)
 

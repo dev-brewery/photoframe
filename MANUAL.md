@@ -5,7 +5,7 @@
 > 1. Download the pre-built SD card image from the [releases page](https://github.com/dev-brewery/photoframe/releases), flash, edit `wifi-config.txt`, boot. Covered as Option 2 in the [README](README.md).
 > 2. Run [`install.sh`](install.sh) on a fresh Raspberry Pi OS Lite install. Covered as Option 1 in the README.
 >
-> This document is for users who want to understand every step, or who need to reproduce the install on a system where the scripted path doesn't fit. Everything here is also documented in `install.sh` as executable code.
+> This document is for users who want to understand every step, or who need to reproduce the install on a system where the scripted path doesn't fit. It installs the same packages as `install.sh`, and also covers what `install.sh` leaves to you: the boot configuration, the console and boot splash, and the time zone.
 >
 > The pre-Bookworm install process (minibian, Python 2, `/etc/network/interfaces`) is no longer supported and is preserved only in git history (`git log -- MANUAL.md` against earlier refs).
 

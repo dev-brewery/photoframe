@@ -83,10 +83,13 @@ class sysconfig:
     state = sysconfig._getConfigFileState('display_rotate')
     if state is None:
       return 0
+    state = state.strip()
     try:
       value = int(state, 16) if state.lower().startswith('0x') else int(state)
     except ValueError:
-      logging.warning(f'Ignoring display_rotate={state} in {path.CONFIG_TXT}, it is not a number')
+      value = -1
+    if value < 0:
+      logging.warning(f'Ignoring display_rotate={state} in {path.CONFIG_TXT}, it is not a valid value')
       return 0
     return value & 3
 
