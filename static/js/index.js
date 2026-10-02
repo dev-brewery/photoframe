@@ -85,15 +85,13 @@ Validator = function() {
 
 	this.gpio = function(input) {
 		// 'auto' picks the pin at startup: GPIO 26 with a colour sensor, GPIO 3 without.
-		// Anything that is not a GPIO number falls back to 'auto'.
-		if (String(input).trim().toLowerCase() == 'auto')
+		// Returns null for anything that is not 'auto' or a GPIO number, so it is rejected.
+		input = String(input).trim();
+		if (input.toLowerCase() == 'auto')
 			return 'auto';
-		i = parseInt(input);
-		if (isNaN(i))
-			return 'auto';
-		if (i < 0)
-			i = 0;
-		return i;
+		if (!/^[0-9]{1,3}$/.test(input))
+			return null;
+		return parseInt(input, 10);
 	}
 }
 

@@ -57,7 +57,9 @@ class display:
         self.emulate = use_emulator
         self.emulate_width = emulate_width
         self.emulate_height = emulate_height
-        self.rotated = sysconfig.isDisplayRotated()
+        # Under KMS the firmware ignores display_rotate and the screen is not
+        # rotated, so drawing rotated geometry would distort the picture (#109)
+        self.rotated = sysconfig.isDisplayRotated() and not sysconfig.usesKMS()
         self.xoffset = 0
         self.yoffset = 0
         self.url = None

@@ -19,7 +19,7 @@ fi
 echo "Installing system dependencies..."
 apt-get update
 apt-get install -y \
-    python3 \
+    python3 python3-smbus \
     python3-netifaces python3-flask python3-requests \
     python3-oauthlib python3-requests-oauthlib python3-flask-httpauth \
     imagemagick fbset git bc \

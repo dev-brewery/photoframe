@@ -66,19 +66,37 @@ class sysconfig:
         logging.exception('Failed to activate new config.txt, you may need to restore the config.txt')
 
   @staticmethod
-  def isDisplayRotated():
-    state = sysconfig._getConfigFileState('display_rotate')
-    if state is not None:
-      return state.endswith('1') or state.endswith('3')
+  def usesKMS():
+    # With the full KMS driver the firmware no longer sets up the display, so
+    # firmware keys such as display_rotate have no effect on screen (#109)
+    if os.path.exists(path.CONFIG_TXT):
+      with open(path.CONFIG_TXT, 'r') as f:
+        for line in f:
+          if line.strip().startswith('dtoverlay=vc4-kms-v3d'):
+            return True
     return False
 
   @staticmethod
-  def getDisplayOrientation():
-    rotate = 0
+  def _displayRotateQuarterTurns():
+    # display_rotate may be written in hex with flip bits (e.g. 0x10002);
+    # the low two bits are the rotation in quarter turns
     state = sysconfig._getConfigFileState('display_rotate')
-    if state is not None:
-      rotate = int(state)*90
-    return rotate
+    if state is None:
+      return 0
+    try:
+      value = int(state, 16) if state.lower().startswith('0x') else int(state)
+    except ValueError:
+      logging.warning(f'Ignoring display_rotate={state} in {path.CONFIG_TXT}, it is not a number')
+      return 0
+    return value & 3
+
+  @staticmethod
+  def isDisplayRotated():
+    return sysconfig._displayRotateQuarterTurns() in (1, 3)
+
+  @staticmethod
+  def getDisplayOrientation():
+    return sysconfig._displayRotateQuarterTurns() * 90
 
   @staticmethod
   def setDisplayOverscan(enable):

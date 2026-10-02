@@ -94,7 +94,10 @@ class Photoframe:
     self.timekeeperMgr = timekeeper()
     self.timekeeperMgr.registerListener(self.displayMgr.enable)
     shutdown_pin = self.settingsMgr.getUser('shutdown-pin')
-    if shutdown_pin == 'auto':
+    if not isinstance(shutdown_pin, int):
+      # 'auto', or a value the settings page used to store by mistake (such as 'NaN')
+      if str(shutdown_pin).strip().lower() != 'auto':
+        logging.warning(f'Shutdown pin setting {shutdown_pin!r} is not auto or a GPIO number, using auto')
       shutdown_pin = shutdown.detect_default_pin()
     self.powerMgr = shutdown(shutdown_pin)
 

@@ -51,7 +51,7 @@ class RouteSettings(BaseRoute):
       if key == 'shutdown-pin':
         # 'auto' or a GPIO number; anything else would leave the button unmonitored
         value = value.strip().lower()
-        if value != 'auto' and not value.isdigit():
+        if value != 'auto' and not (value.isascii() and value.isdigit()):
           self.setAbort(400)
           return
       self.settingsMgr.setUser(key, value)
