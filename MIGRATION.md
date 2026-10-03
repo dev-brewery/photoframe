@@ -138,7 +138,7 @@ service frame stop
 
 Look for lines mentioning the display or the framebuffer (in either case) in the output. How the size is found:
 
-- If the `tvservice` command is installed, photoframe asks `tvservice` for the saved display mode. If `tvservice` does not report that mode, or fails, photoframe turns the display off and logs "Unable to find a valid display mode, will default to 1280x720".
+- If the `tvservice` command is installed, photoframe asks `tvservice` for the saved display mode. If `tvservice` does not report that mode, or fails, photoframe stops drawing to the display (the screen keeps whatever it last showed) and logs "Unable to find a valid display mode, will default to 1280x720".
 - Otherwise it reads the size of the framebuffer (`/dev/fb0`) with `fbset`, and ignores the Resolution setting. If that fails, for example because `fbset` is not installed or `/dev/fb0` cannot be opened, it uses 800x480 and logs "Framebuffer detection failed, using safe default display configuration". `install.sh` and `migrate-from-mrworf.sh` install `fbset`; if you followed the steps above by hand, run `apt-get install -y fbset`.
 - With a custom display driver selected, it uses 1280x720: always without `tvservice`, and with `tvservice` when `tvservice` reports the driver's mode.
 
