@@ -7,7 +7,7 @@ This guide covers migrating from the original [mrworf/photoframe](https://github
 - **Python 2 to Python 3** - new system packages required
 - **New photo service: Immich** - self-hosted alternative to Google Photos
 - **Google Photos deprecated** - Google removed the API ([details](GOOGLE_PHOTOS.md))
-- **Modern display detection** - tvservice replaced with KMS/DRM + fallback chain
+- **Display detection without tvservice** - where `tvservice` is missing, the display size is read from the framebuffer
 - **Picasa removed** - the service was already non-functional
 
 Your existing configuration (`/root/photoframe_config/`) is preserved during migration.
@@ -131,13 +131,17 @@ Common causes:
 
 ### Display issues after migration
 
-The new display module auto-detects the best method. If you have issues:
+photoframe detects the display when it starts, and again when the Resolution setting is changed. If you have issues:
 ```bash
 service frame stop
 /root/photoframe/frame.py --debug
 ```
 
-Look for `display` entries in the output. The detection order is: KMS/DRM, xrandr, fbset, tvservice.
+Look for lines mentioning the display or the framebuffer (in either case) in the output. How the size is found:
+
+- If the `tvservice` command is installed, photoframe asks `tvservice` for the saved display mode. If `tvservice` does not report that mode, or fails, photoframe stops drawing to the display (the screen keeps whatever it last showed) and logs "Unable to find a valid display mode, will default to 1280x720".
+- Otherwise it reads the size of the framebuffer (`/dev/fb0`) with `fbset`, and ignores the Resolution setting. If that fails, for example because `fbset` is not installed or `/dev/fb0` cannot be opened, it uses 800x480 and logs "Framebuffer detection failed, using safe default display configuration". `install.sh` and `migrate-from-mrworf.sh` install `fbset`; if you followed the steps above by hand, run `apt-get install -y fbset`.
+- With a custom display driver selected, it uses 1280x720: always without `tvservice`, and with `tvservice` when `tvservice` reports the driver's mode.
 
 ### Configuration not preserved
 
