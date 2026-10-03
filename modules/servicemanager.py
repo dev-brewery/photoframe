@@ -336,6 +336,39 @@ class ServiceManager:
       return svc.discoverAlbums()
     return {'success': False, 'error': 'Album discovery not implemented'}
 
+  def getServicePrioritization(self, service):
+    """Get prioritization setting for a service.
+
+    Returns current mode and available modes if service supports prioritization.
+    Extensible: any service implementing hasPrioritization() can use this.
+    Currently: Immich.
+    """
+    if service not in self._SERVICES:
+      return {'success': False, 'error': 'Service not found'}
+    svc = self._SERVICES[service]['service']
+    if not svc.hasPrioritization():
+      return {'success': False, 'error': 'Service does not support prioritization'}
+    return {
+      'success': True,
+      'current': svc.getPrioritization(),
+      'modes': svc.getPrioritizationModes()
+    }
+
+  def setServicePrioritization(self, service, mode):
+    """Set prioritization mode for a service.
+
+    Extensible: any service implementing hasPrioritization() can use this.
+    Currently: Immich.
+    """
+    if service not in self._SERVICES:
+      return {'success': False, 'error': 'Service not found'}
+    svc = self._SERVICES[service]['service']
+    if not svc.hasPrioritization():
+      return {'success': False, 'error': 'Service does not support prioritization'}
+    if svc.setPrioritization(mode):
+      return {'success': True, 'mode': mode}
+    return {'success': False, 'error': 'Invalid prioritization mode'}
+
   def getServiceState(self, id):
     if id not in self._SERVICES:
       return None
@@ -422,6 +455,7 @@ class ServiceManager:
         'hasSourceUrl' : svc['service'].hasKeywordSourceUrl(),
         'hasDetails' : svc['service'].hasKeywordDetails(),
         'hasAlbumPicker' : svc['service'].hasAlbumPicker(),  # Album browse UI (Immich, extensible)
+        'hasPrioritization' : svc['service'].hasPrioritization(),  # Prioritization UI (Immich, extensible)
         'messages' : svc['service'].getMessages(),
         'immichConfigType' : immichConfigType,  # NEW FIELD
       })

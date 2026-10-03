@@ -30,6 +30,8 @@ class RouteKeywords(BaseRoute):
     self.addUrl('/keywords/<service>/source/<int:index>')
     self.addUrl('/keywords/<service>/details/<int:index>')
     self.addUrl('/keywords/<service>/albums')  # Album picker (Immich, extensible)
+    self.addUrl('/keywords/<service>/prioritization')  # Prioritization settings (Immich, extensible)
+    self.addUrl('/keywords/<service>/prioritization').clearMethods().addMethod('POST')
 
   def handle(self, app, service, index=None):
     if self.getRequest().method == 'GET':
@@ -42,25 +44,36 @@ class RouteKeywords(BaseRoute):
       elif 'albums' in self.getRequest().url:
         # Album picker endpoint (Immich, extensible to other services)
         return self.jsonify(self.servicemgr.getServiceAlbums(service))
+      elif 'prioritization' in self.getRequest().url:
+        # Prioritization settings endpoint (Immich, extensible to other services)
+        return self.jsonify(self.servicemgr.getServicePrioritization(service))
       else:
         return self.jsonify({'keywords' : self.servicemgr.getServiceKeywords(service)})
-    elif self.getRequest().method == 'POST' and self.getRequest().json is not None:
-      result = True
-      if 'id' not in self.getRequest().json:
-        hadKeywords = self.servicemgr.hasKeywords()
-        result = self.servicemgr.addServiceKeywords(service, self.getRequest().json['keywords'])
-        if result['error'] is not None:
-          result['status'] = False
+    elif self.getRequest().method == 'POST':
+      # Handle prioritization POST separately
+      if 'prioritization' in self.getRequest().url:
+        if self.getRequest().json is None:
+          return self.jsonify({'success': False, 'error': 'JSON body required'})
+        mode = self.getRequest().json.get('mode', 'none')
+        return self.jsonify(self.servicemgr.setServicePrioritization(service, mode))
+      # Handle keyword add/delete
+      if self.getRequest().json is not None:
+        result = True
+        if 'id' not in self.getRequest().json:
+          hadKeywords = self.servicemgr.hasKeywords()
+          result = self.servicemgr.addServiceKeywords(service, self.getRequest().json['keywords'])
+          if result['error'] is not None:
+            result['status'] = False
+          else:
+            result['status'] = True
+            if hadKeywords != self.servicemgr.hasKeywords():
+              # Make slideshow show the change immediately, we have keywords
+              self.slideshow.trigger()
         else:
-          result['status'] = True
-          if hadKeywords != self.servicemgr.hasKeywords():
-            # Make slideshow show the change immediately, we have keywords
+          if not self.servicemgr.removeServiceKeywords(service, self.getRequest().json['id']):
+            result = {'status':False, 'error' : 'Unable to remove keyword'}
+          else:
+            # Trigger slideshow, we have removed some keywords
             self.slideshow.trigger()
-      else:
-        if not self.servicemgr.removeServiceKeywords(service, self.getRequest().json['id']):
-          result = {'status':False, 'error' : 'Unable to remove keyword'}
-        else:
-          # Trigger slideshow, we have removed some keywords
-          self.slideshow.trigger()
-      return self.jsonify(result)
+        return self.jsonify(result)
     self.setAbort(500)
