@@ -130,13 +130,17 @@ Common causes:
 
 ### Display issues after migration
 
-The new display module auto-detects the best method. If you have issues:
+photoframe detects the display when it starts. If you have issues:
 ```bash
 service frame stop
 /root/photoframe/frame.py --debug
 ```
 
-Look for `display` and `framebuffer` entries in the output. photoframe uses `tvservice` if it is installed; otherwise it reads the display size from the framebuffer with `fbset`.
+Look for lines mentioning the display or the framebuffer (in either case) in the output. How the size is found:
+
+- If the `tvservice` command is installed, photoframe asks `tvservice` for the display mode.
+- Otherwise it reads the size of the framebuffer (`/dev/fb0`) with `fbset`. If that fails, for example because `fbset` is not installed or `/dev/fb0` cannot be opened, it uses 800x480 and logs "Framebuffer detection failed, using safe default display configuration". `install.sh` and `migrate-from-mrworf.sh` install `fbset`; if you followed the steps above by hand, run `apt install fbset`.
+- With a custom display driver selected, it uses 1280x720.
 
 ### Configuration not preserved
 

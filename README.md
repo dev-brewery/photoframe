@@ -16,7 +16,7 @@ It also has features like ambient color temperature adjustment, ambient light po
 - **Immich integration** - display photos from your self-hosted [Immich](https://immich.app/) server (recommended)
 - **HEIC/HEIF support** - display Apple photos without conversion issues
 - **Python 3** - modern, maintained codebase
-- **Works without tvservice** - on current Raspberry Pi OS, where `tvservice` is gone, the display size is read from the framebuffer; `tvservice` is still used where it exists
+- **Works without tvservice** - on current Raspberry Pi OS, where `tvservice` is gone, the display size is read from the framebuffer; where the `tvservice` command is installed, it is still used
 - **Multi-architecture** - supports both 32-bit (armhf) and 64-bit (arm64) Raspberry Pi OS
 - Simple web interface for configuration (port 7777)
 - Google Photos search integration (deprecated due to API changes - [details](GOOGLE_PHOTOS.md))
@@ -272,11 +272,11 @@ Replace `1366 768` with your panel's native resolution. `hdmi_mode=87` is the "u
 
 Reboot the frame with the cable connected.
 
-Seen on a Raspberry Pi 4 on Bookworm: when the HDMI cable is unplugged and plugged back in while the frame is running, the Pi can fail to re-read the monitor's identification (EDID) and drops to 1024x768. photoframe keeps drawing at the size it found at startup, so the screen shows only the top-left part of each picture. A reboot reads the monitor again and restores the full picture. Tracked in [#97](https://github.com/dev-brewery/photoframe/issues/97).
+Seen on a Raspberry Pi 4 on Bookworm: when the HDMI cable is unplugged and plugged back in while the frame is running, the Pi can fail to re-read the monitor's identification (EDID) and drops the screen to 1024x768. The framebuffer photoframe draws into keeps the size it was given at boot, so the screen shows only its top-left part. A reboot reads the monitor again and sizes the screen and the framebuffer correctly.
 
 ### Are there logs?
 
-On Bookworm: `journalctl -u frame.service -f` (or the **Log report** button on the web UI, which falls back to `journalctl` automatically when `/var/log/syslog` is absent — Bookworm Lite doesn't ship `rsyslog`).
+On Bookworm: `journalctl -u frame.service -f`, or the **Log report** button in the System box of the web UI, which shows the last 100 lines. It reads `journalctl` automatically when there is no traditional log file such as `/var/log/syslog`; Bookworm Lite doesn't ship `rsyslog`.
 
 On older releases that still have `rsyslog`: `/var/log/syslog` works too (search for `frame` or `photoframe`).
 
