@@ -5,7 +5,7 @@
 > 1. Download the pre-built SD card image from the [releases page](https://github.com/dev-brewery/photoframe/releases), flash, edit `wifi-config.txt`, boot. Covered as Option 2 in the [README](README.md).
 > 2. Run [`install.sh`](install.sh) on a fresh Raspberry Pi OS Lite install. Covered as Option 1 in the README.
 >
-> This document is for users who want to understand every step, or who need to reproduce the install on a system where the scripted path doesn't fit. Everything here is also documented in `install.sh` as executable code.
+> This document is for users who want to understand every step, or who need to reproduce the install on a system where the scripted path doesn't fit. It installs the same packages as `install.sh`, and also covers what `install.sh` leaves to you: the boot configuration, the console and boot splash, and the time zone.
 >
 > The pre-Bookworm install process (minibian, Python 2, `/etc/network/interfaces`) is no longer supported and is preserved only in git history (`git log -- MANUAL.md` against earlier refs).
 
@@ -37,25 +37,20 @@ Make your install up to date by issuing
 sudo apt update && sudo apt upgrade
 ```
 
-Once done, install all dependencies. The package list below is lifted
-from `stage2/04-photoframe/00-packages` in the
-[`dev-brewery/pi-gen`](https://github.com/dev-brewery/pi-gen) fork and
-matches exactly what the pre-built image ships with:
+Once done, install all dependencies. This is the same package list
+`install.sh` uses:
 
 ```
-sudo apt install apt-utils raspi-config git bc openssh-server \
-    python3 python3-pip python3-smbus \
-    fbset imagemagick libheif-examples libjpeg-turbo-progs \
-    rng-tools-debian
+sudo apt install git bc openssh-server \
+    python3 python3-smbus \
+    python3-netifaces python3-flask python3-requests \
+    python3-oauthlib python3-requests-oauthlib python3-flask-httpauth \
+    fbset imagemagick libheif-examples libjpeg-turbo-progs
 ```
 
-**Python 3 note:** Bookworm enforces
-[PEP 668](https://peps.python.org/pep-0668/) and refuses `pip` installs
-into the system Python environment without explicit opt-in. Photoframe
-needs its dependencies globally installed (the `frame` systemd service
-runs them as root), so we pass the `--break-system-packages` flag when
-running pip. This is intentional, not a mistake. See the photoframe
-install command block below.
+**Python 3 note:** every Python dependency in `requirements.txt` comes
+from apt. Bookworm and later refuse system-wide `pip` installs
+([PEP 668](https://peps.python.org/pep-0668/)), so pip is not used.
 
 Next, let's tweak the boot config so the framebuffer is free for
 photoframe to take over. On Bookworm, the boot-partition config files
@@ -130,7 +125,6 @@ sudo su -
 cd /root
 git clone https://github.com/dev-brewery/photoframe.git
 cd photoframe
-pip3 install --break-system-packages -r requirements.txt
 cp frame.service /etc/systemd/system/
 systemctl enable /etc/systemd/system/frame.service
 ```

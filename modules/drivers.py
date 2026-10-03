@@ -257,7 +257,7 @@ class drivers:
 						break
 					lines.append(line)
 		except:
-			logging.exception('Failed to read /boot/config.txt')
+			logging.exception(f'Failed to read {path.CONFIG_TXT}')
 			return None
 
 		# Add our options
@@ -268,7 +268,7 @@ class drivers:
 
 		# Save the new file
 		try:
-			with open('/boot/config.txt.new', 'w') as f:
+			with open(f'{path.CONFIG_TXT}.new', 'w') as f:
 				for line in lines:
 					f.write(f'{line}\n')
 		except:
@@ -277,13 +277,13 @@ class drivers:
 
 		# On success, we rename and delete the old config
 		try:
-			os.rename(path.CONFIG_TXT, '/boot/config.txt.old')
-			os.rename('/boot/config.txt.new', path.CONFIG_TXT)
+			os.rename(path.CONFIG_TXT, f'{path.CONFIG_TXT}.old')
+			os.rename(f'{path.CONFIG_TXT}.new', path.CONFIG_TXT)
 			# Keep the first version of the config.txt just-in-case
-			if os.path.exists('/boot/config.txt.original'):
-				os.unlink('/boot/config.txt.old')
+			if os.path.exists(f'{path.CONFIG_TXT}.original'):
+				os.unlink(f'{path.CONFIG_TXT}.old')
 			else:
-				os.rename('/boot/config.txt.old', '/boot/config.txt.original')
+				os.rename(f'{path.CONFIG_TXT}.old', f'{path.CONFIG_TXT}.original')
 		except:
 			logging.exception('Failed to activate new config.txt, you may need to restore the config.txt')
 			return None

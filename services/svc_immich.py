@@ -658,7 +658,7 @@ class Immich(BaseService):
         elif state == BaseService.STATE_NEED_KEYWORDS:
             return 'Add album names as keywords to specify which Immich albums to display photos from.'
         elif state == BaseService.STATE_NO_IMAGES:
-            return 'Immich service configured. Add album keywords to display photos from your Immich albums.'
+            return 'The configured albums returned no photos. Check that they still exist and contain photos, and that the API key is still valid.'
         elif state == BaseService.STATE_READY:
             return 'Immich service ready. Real photo retrieval available from configured albums.'
         return None

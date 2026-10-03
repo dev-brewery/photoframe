@@ -112,7 +112,7 @@ The image's time zone is `Europe/London`. Choose your own under **Time zone** on
 
 ### Option 3: Manual install
 
-See [MANUAL.md](MANUAL.md) for a step-by-step walkthrough that mirrors what `install.sh` does, for users who want to understand every step or reproduce it on a system where the scripted path doesn't fit.
+See [MANUAL.md](MANUAL.md) for a step-by-step walkthrough that installs the same packages as `install.sh`, adds the boot, console and time zone settings the script leaves to you, and makes the nightly update optional, for users who want to understand every step or reproduce it on a system where the scripted path doesn't fit.
 
 ### Option 4: Migrate from mrworf/photoframe
 
@@ -195,11 +195,7 @@ The pin is the **GPIO to monitor for shutdown interrupts** setting on the web UI
 
 GPIO 3 is the sensor's I2C clock line, which is why a frame with the sensor uses GPIO 26 instead. Connecting GPIO 3 to ground is also what wakes a halted Raspberry Pi on models that have that feature, so there the same switch turns the frame back on. GPIO 26 only shuts it down.
 
-A frame that already has a pin number saved keeps that number. The settings page accepts only numbers, so to go back to `auto` use the API (add `-u <user>:<password>` if the web UI has a login):
-
-```bash
-curl -X PUT http://<pi-ip>:7777/setting/shutdown-pin/auto
-```
+A frame that already has a pin number saved keeps that number. To go back to automatic selection, type `auto` into the setting. The field accepts only `auto` or a GPIO number.
 
 ## FAQ
 

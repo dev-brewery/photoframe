@@ -19,6 +19,14 @@ import os
 import logging
 from pathlib import Path
 
+def _defaultConfigTxt():
+    # Bookworm and later keep the boot files in /boot/firmware (and leave a
+    # "do not edit" stub at /boot/config.txt); older releases use /boot.
+    for candidate in ('/boot/firmware/config.txt', '/boot/config.txt'):
+        if os.path.exists(candidate):
+            return Path(candidate)
+    return Path('/boot/config.txt')
+
 class path:
     # Default paths match upstream mrworf/photoframe — runtime data lives at
     # /root/* (siblings of the repo at /root/photoframe/), keeping the working
@@ -33,7 +41,7 @@ class path:
     DRV_BUILTIN   = Path('display-drivers')
     DRV_EXTERNAL  = CONFIGFOLDER / 'display-drivers'
 
-    CONFIG_TXT    = Path('boot/config.txt')
+    CONFIG_TXT    = _defaultConfigTxt()
 
     @classmethod
     def reassignConfigTxt(cls, newconfig):
