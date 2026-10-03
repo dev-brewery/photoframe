@@ -66,7 +66,7 @@ class sysconfig:
         logging.exception('Failed to activate new config.txt, you may need to restore the config.txt')
 
   @staticmethod
-  def usesKMS():
+  def usesVC4DisplayDriver():
     # True with the KMS driver (vc4-kms-v3d) or the fake-KMS driver (vc4-fkms-v3d).
     # Under KMS display_rotate has no effect on screen (#109); under fake KMS the
     # framebuffer keeps the display's unrotated size. Either way photoframe must not

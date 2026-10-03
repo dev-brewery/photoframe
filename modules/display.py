@@ -76,7 +76,7 @@ class display:
         # stack, where tvservice reports the unrotated display mode. Without tvservice
         # the size is read from the framebuffer as it is. Under KMS display_rotate is
         # ignored (#109), and under fake KMS the framebuffer is not rotated.
-        self.rotated = self.has_tvservice and not sysconfig.usesKMS() and sysconfig.isDisplayRotated()
+        self.rotated = self.has_tvservice and not sysconfig.usesVC4DisplayDriver() and sysconfig.isDisplayRotated()
 
     def _cleanup(self):
         if hasattr(self, 'void') and self.void:
