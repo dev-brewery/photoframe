@@ -72,10 +72,10 @@ class display:
         if not self.has_tvservice:
             logging.info('tvservice not available, using modern display detection methods')
 
-        # Swap width and height for display_rotate only when the size comes from
-        # tvservice, which reports the unrotated display mode. Without tvservice the
-        # size is read from the framebuffer, which already has the orientation the
-        # firmware gave it; under KMS display_rotate is ignored altogether (#109).
+        # Swap width and height for display_rotate only on the legacy firmware display
+        # stack, where tvservice reports the unrotated display mode. Without tvservice
+        # the size is read from the framebuffer as it is. Under KMS display_rotate is
+        # ignored (#109), and under fake KMS the framebuffer is not rotated.
         self.rotated = self.has_tvservice and not sysconfig.usesKMS() and sysconfig.isDisplayRotated()
 
     def _cleanup(self):

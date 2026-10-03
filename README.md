@@ -112,7 +112,7 @@ The image's time zone is `Europe/London`. Choose your own under **Time zone** on
 
 ### Option 3: Manual install
 
-See [MANUAL.md](MANUAL.md) for a step-by-step walkthrough of the same install as `install.sh`, plus the boot, console and time zone settings the script leaves to you, for users who want to understand every step or reproduce it on a system where the scripted path doesn't fit.
+See [MANUAL.md](MANUAL.md) for a step-by-step walkthrough that installs the same packages as `install.sh`, adds the boot, console and time zone settings the script leaves to you, and makes the nightly update optional, for users who want to understand every step or reproduce it on a system where the scripted path doesn't fit.
 
 ### Option 4: Migrate from mrworf/photoframe
 

@@ -67,12 +67,15 @@ class sysconfig:
 
   @staticmethod
   def usesKMS():
-    # With the full KMS driver the firmware no longer sets up the display, so
-    # firmware keys such as display_rotate have no effect on screen (#109)
+    # True with the KMS driver (vc4-kms-v3d) or the fake-KMS driver (vc4-fkms-v3d).
+    # Under KMS display_rotate has no effect on screen (#109); under fake KMS the
+    # framebuffer keeps the display's unrotated size. Either way photoframe must not
+    # swap width and height for display_rotate.
     if os.path.exists(path.CONFIG_TXT):
       with open(path.CONFIG_TXT, 'r') as f:
         for line in f:
-          if line.strip().startswith('dtoverlay=vc4-kms-v3d'):
+          clean = line.strip()
+          if clean.startswith('dtoverlay=vc4-kms-v3d') or clean.startswith('dtoverlay=vc4-fkms-v3d'):
             return True
     return False
 
