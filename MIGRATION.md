@@ -39,8 +39,11 @@ It can be run again without harm. If photoframe is not in `/root/photoframe`, se
 ### By hand
 
 ```bash
+# Run everything below as root
+sudo su -
+
 # 1. Stop the service
-sudo systemctl stop frame.service
+systemctl stop frame.service
 
 # 2. Back up your configuration
 cp -r /root/photoframe_config /root/photoframe_config.bak
@@ -62,6 +65,7 @@ apt-get install -y python3 python3-smbus \
 # 5. Update the service file
 cp frame.service /etc/systemd/system/
 systemctl daemon-reload
+systemctl enable frame.service
 
 # 6. Restart
 systemctl start frame.service
@@ -71,9 +75,9 @@ Verify via the web UI at `http://<your-pi-ip>:7777`.
 
 ## Scenario B: Existing SD card image install
 
-If you used one of mrworf's pre-built SD card images, follow the same steps as Scenario A. The SD card images used Python 2 system packages, so you will need to install the Python 3 packages listed in step 4.
+mrworf's pre-built SD card images (2018 and 2019) are Raspbian Stretch, which the migration does not support. Download the latest image from the [releases page](https://github.com/dev-brewery/photoframe/releases) and flash it to a new SD card. Your configuration from the old install will need to be set up again.
 
-If you prefer a fresh start, download the latest image from the [releases page](https://github.com/dev-brewery/photoframe/releases) and flash it to a new SD card. Your configuration from the old install will need to be set up again.
+If you have since upgraded that system to a release Scenario A supports, you can follow Scenario A instead.
 
 ## Scenario C: Fresh install (no existing photoframe)
 

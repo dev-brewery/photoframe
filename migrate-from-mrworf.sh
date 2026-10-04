@@ -46,7 +46,8 @@ echo "Current: $CURRENT_REMOTE  ($CURRENT_BRANCH)"
 echo
 
 # Stop the service before touching the working tree.
-if systemctl list-unit-files | grep -q '^frame.service'; then
+# (systemctl cat needs no pipe, which could fail at random under pipefail.)
+if systemctl cat frame.service > /dev/null 2>&1; then
     SERVICE_WAS_RUNNING=0
     if systemctl is-active --quiet frame.service; then
         SERVICE_WAS_RUNNING=1
@@ -100,13 +101,18 @@ if [ -f "$REPO_DIR/frame.service" ]; then
 fi
 
 # Restart only if the service was running before, or if it's now enabled.
+START_FAILED=0
 if [ "$SERVICE_WAS_RUNNING" -eq 1 ] || systemctl is-enabled --quiet frame.service; then
     echo "Starting frame.service..."
     # Do not let a failed start end the script before it reports the state below.
     systemctl start frame.service || true
-    sleep 2
-    systemctl is-active --quiet frame.service && echo "frame.service is active." \
-        || echo "WARNING: frame.service is not active after start."
+    sleep 5
+    if systemctl is-active --quiet frame.service; then
+        echo "frame.service is active."
+    else
+        echo "WARNING: frame.service is not active after start. Check: journalctl -u frame.service"
+        START_FAILED=1
+    fi
 fi
 
 echo
@@ -114,3 +120,7 @@ echo "=== Migration complete ==="
 echo "Now on: $(git remote get-url origin)  ($(git rev-parse --abbrev-ref HEAD))"
 echo "HEAD:   $(git log -1 --oneline)"
 echo "Web UI: http://$(hostname -I 2>/dev/null | awk '{print $1}'):7777"
+if [ "$START_FAILED" -eq 1 ]; then
+    echo "The code and packages are migrated, but frame.service did not start (see the warning above)."
+    exit 1
+fi
