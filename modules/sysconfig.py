@@ -66,18 +66,30 @@ class sysconfig:
         logging.exception('Failed to activate new config.txt, you may need to restore the config.txt')
 
   @staticmethod
+  def _vc4Overlay():
+    # Returns 'vc4-kms-v3d', 'vc4-fkms-v3d' or None, from the active dtoverlay lines
+    if os.path.exists(path.CONFIG_TXT):
+      with open(path.CONFIG_TXT, 'r') as f:
+        for line in f:
+          clean = line.strip()
+          for overlay in ('vc4-kms-v3d', 'vc4-fkms-v3d'):
+            if clean.startswith(f'dtoverlay={overlay}'):
+              return overlay
+    return None
+
+  @staticmethod
   def usesVC4DisplayDriver():
     # True with the KMS driver (vc4-kms-v3d) or the fake-KMS driver (vc4-fkms-v3d).
     # Under KMS display_rotate has no effect on screen (#109); under fake KMS the
     # framebuffer keeps the display's unrotated size. Either way photoframe must not
     # swap width and height for display_rotate.
-    if os.path.exists(path.CONFIG_TXT):
-      with open(path.CONFIG_TXT, 'r') as f:
-        for line in f:
-          clean = line.strip()
-          if clean.startswith('dtoverlay=vc4-kms-v3d') or clean.startswith('dtoverlay=vc4-fkms-v3d'):
-            return True
-    return False
+    return sysconfig._vc4Overlay() is not None
+
+  @staticmethod
+  def usesKMSDriver():
+    # True only with the full KMS driver (vc4-kms-v3d), under which the firmware
+    # no longer drives the display and tvservice does not work (#114)
+    return sysconfig._vc4Overlay() == 'vc4-kms-v3d'
 
   @staticmethod
   def _displayRotateQuarterTurns():

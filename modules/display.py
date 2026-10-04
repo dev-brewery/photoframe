@@ -48,6 +48,20 @@ def _find_rgb565():
 
 _RGB565_PATH = _find_rgb565()
 
+def _tvservice_usable():
+    """True if tvservice can report the display.
+
+    tvservice only works on the legacy firmware display stack. On Bullseye with the
+    KMS driver the command is still installed but does not work, and photoframe has to
+    read the framebuffer instead, as it does where tvservice is missing (#114).
+    """
+    if sysconfig.usesKMSDriver():
+        return False
+    try:
+        return subprocess.run(['tvservice', '-s'], capture_output=True, timeout=5, check=False).returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
 class display:
     def __init__(self, use_emulator=False, emulate_width=1280, emulate_height=720):
         self.void = open(os.devnull, 'wb')
@@ -434,14 +448,7 @@ class display:
         result = []
         
         # Try tvservice first (backward compatibility)
-        tvservice_available = False
-        try:
-            subprocess.run(['tvservice', '--help'], capture_output=True, timeout=5, check=False)
-            tvservice_available = True
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
-        
-        if tvservice_available:
+        if _tvservice_usable():
             # Use traditional tvservice method
             try:
                 output = subprocess.check_output(['tvservice', '-m', 'CEA'], stderr=subprocess.DEVNULL).decode('utf-8')
@@ -470,15 +477,8 @@ class display:
     @staticmethod
     def validate(tvservice, special):
         """Validate display mode using hybrid detection (tvservice or modern fallback)"""
-        # Check if tvservice is available
-        tvservice_available = False
-        try:
-            subprocess.run(['tvservice', '--help'], capture_output=True, timeout=5, check=False)
-            tvservice_available = True
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
-        
-        if tvservice_available:
+        # Check if tvservice is usable
+        if _tvservice_usable():
             # Use traditional tvservice validation
             if special:
                 try:
@@ -530,12 +530,8 @@ class display:
         return None
 
     def _check_tvservice_available(self):
-        """Check if tvservice command is available (backward compatibility)"""
-        try:
-            subprocess.run(['tvservice', '--help'], capture_output=True, timeout=5, check=False)
-            return True
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            return False
+        """Check if tvservice is usable (backward compatibility)"""
+        return _tvservice_usable()
 
     def _get_framebuffer_info(self):
         """Get current framebuffer information with comprehensive validation"""

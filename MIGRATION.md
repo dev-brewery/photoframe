@@ -16,6 +16,8 @@ Your existing configuration (`/root/photoframe_config/`) is preserved during mig
 
 If you installed photoframe by cloning the repo to `/root/photoframe`, you can use the migration script or do the same steps by hand.
 
+The migration needs Raspbian Buster or later. Older releases such as Stretch have neither the Python 3 version the fork needs (3.6 or later) nor all of its packages; on those, flash the current image instead (Scenario B). The script checks this and stops before changing anything.
+
 ### With the migration script
 
 ```bash
@@ -50,19 +52,18 @@ git fetch origin
 git checkout 3.0.0
 git pull
 
-# 4. Install Python 3 dependencies
+# 4. Install the dependencies (the same list as install.sh; all from apt, no pip)
 apt-get update
-apt-get install -y python3 python3-pip python3-netifaces python3-flask python3-requests
-pip3 install -r requirements.txt
+apt-get install -y python3 python3-smbus \
+    python3-netifaces python3-flask python3-requests \
+    python3-oauthlib python3-requests-oauthlib python3-flask-httpauth \
+    imagemagick fbset git bc libjpeg-turbo-progs libheif-examples openssh-server
 
-# 5. Optional: HEIC/HEIF image support (for Apple photos)
-apt-get install -y libheif-examples
-
-# 6. Update the service file
+# 5. Update the service file
 cp frame.service /etc/systemd/system/
 systemctl daemon-reload
 
-# 7. Restart
+# 6. Restart
 systemctl start frame.service
 ```
 

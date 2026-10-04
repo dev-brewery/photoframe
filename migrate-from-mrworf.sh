@@ -29,6 +29,15 @@ if [ ! -d "$REPO_DIR/.git" ]; then
     exit 1
 fi
 
+# The fork needs Python 3.6 or later and installs its packages from apt, which
+# needs Raspbian Buster (10) or later. Stop before touching anything on older systems.
+OS_VERSION="$(. /etc/os-release 2>/dev/null; echo "${VERSION_ID:-}")"
+if [ -n "$OS_VERSION" ] && [ "${OS_VERSION%%.*}" -lt 10 ] 2>/dev/null; then
+    echo "ERROR: this system is release $OS_VERSION; the migration needs Raspbian Buster (10) or later."
+    echo "       Flash the current image from the releases page instead (see MIGRATION.md, Scenario B)."
+    exit 1
+fi
+
 cd "$REPO_DIR"
 
 CURRENT_REMOTE="$(git remote get-url origin 2>/dev/null || echo 'none')"
@@ -69,22 +78,18 @@ echo "Checking out $TARGET_BRANCH..."
 git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
 git pull --ff-only
 
-# Install apt deps that the fork needs (idempotent — apt is fine to re-run).
-echo "Installing apt dependencies..."
+# Install the packages the fork needs (idempotent — apt is fine to re-run).
+# The same list as install.sh: every package in requirements.txt comes from apt,
+# so pip is not used (Bookworm and later refuse system-wide pip installs, PEP 668).
+echo "Installing dependencies..."
 apt-get update
 apt-get install -y \
-    python3 python3-pip \
+    python3 python3-smbus \
     python3-netifaces python3-flask python3-requests \
+    python3-oauthlib python3-requests-oauthlib python3-flask-httpauth \
     imagemagick fbset git bc \
     libjpeg-turbo-progs libheif-examples \
     openssh-server
-
-# Python pip deps.
-if [ -f "$REPO_DIR/requirements.txt" ]; then
-    echo "Installing pip dependencies..."
-    pip3 install --break-system-packages -r "$REPO_DIR/requirements.txt" || \
-        pip3 install -r "$REPO_DIR/requirements.txt"
-fi
 
 # Refresh systemd unit from the repo copy.
 if [ -f "$REPO_DIR/frame.service" ]; then
