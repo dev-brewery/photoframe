@@ -29,6 +29,16 @@ if [ ! -d "$REPO_DIR/.git" ]; then
     exit 1
 fi
 
+# The fork supports Raspberry Pi OS Bullseye (11) and later, the same releases as
+# install.sh. Older releases lack packages it installs from apt or the Python
+# version it needs (3.8 or later). Stop before touching anything on those.
+OS_VERSION="$(. /etc/os-release 2>/dev/null; echo "${VERSION_ID:-}")"
+if [ -n "$OS_VERSION" ] && [ "${OS_VERSION%%.*}" -lt 11 ] 2>/dev/null; then
+    echo "ERROR: this system is release $OS_VERSION; the migration needs Raspberry Pi OS Bullseye (11) or later."
+    echo "       Flash the current image from the releases page instead (see MIGRATION.md, Scenario B)."
+    exit 1
+fi
+
 cd "$REPO_DIR"
 
 CURRENT_REMOTE="$(git remote get-url origin 2>/dev/null || echo 'none')"
@@ -37,7 +47,8 @@ echo "Current: $CURRENT_REMOTE  ($CURRENT_BRANCH)"
 echo
 
 # Stop the service before touching the working tree.
-if systemctl list-unit-files | grep -q '^frame.service'; then
+# (systemctl cat needs no pipe, which could fail at random under pipefail.)
+if systemctl cat frame.service > /dev/null 2>&1; then
     SERVICE_WAS_RUNNING=0
     if systemctl is-active --quiet frame.service; then
         SERVICE_WAS_RUNNING=1
@@ -69,22 +80,18 @@ echo "Checking out $TARGET_BRANCH..."
 git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
 git pull --ff-only
 
-# Install apt deps that the fork needs (idempotent — apt is fine to re-run).
-echo "Installing apt dependencies..."
+# Install the packages the fork needs (idempotent — apt is fine to re-run).
+# The same list as install.sh: every package in requirements.txt comes from apt,
+# so pip is not used (Bookworm and later refuse system-wide pip installs, PEP 668).
+echo "Installing dependencies..."
 apt-get update
 apt-get install -y \
-    python3 python3-pip \
+    python3 python3-smbus \
     python3-netifaces python3-flask python3-requests \
+    python3-oauthlib python3-requests-oauthlib python3-flask-httpauth \
     imagemagick fbset git bc \
     libjpeg-turbo-progs libheif-examples \
     openssh-server
-
-# Python pip deps.
-if [ -f "$REPO_DIR/requirements.txt" ]; then
-    echo "Installing pip dependencies..."
-    pip3 install --break-system-packages -r "$REPO_DIR/requirements.txt" || \
-        pip3 install -r "$REPO_DIR/requirements.txt"
-fi
 
 # Refresh systemd unit from the repo copy.
 if [ -f "$REPO_DIR/frame.service" ]; then
@@ -95,12 +102,18 @@ if [ -f "$REPO_DIR/frame.service" ]; then
 fi
 
 # Restart only if the service was running before, or if it's now enabled.
+START_FAILED=0
 if [ "$SERVICE_WAS_RUNNING" -eq 1 ] || systemctl is-enabled --quiet frame.service; then
     echo "Starting frame.service..."
-    systemctl start frame.service
-    sleep 2
-    systemctl is-active --quiet frame.service && echo "frame.service is active." \
-        || echo "WARNING: frame.service is not active after start."
+    # Do not let a failed start end the script before it reports the state below.
+    systemctl start frame.service || true
+    sleep 5
+    if systemctl is-active --quiet frame.service; then
+        echo "frame.service is active."
+    else
+        echo "WARNING: frame.service is not active after start. Check: journalctl -u frame.service"
+        START_FAILED=1
+    fi
 fi
 
 echo
@@ -108,3 +121,7 @@ echo "=== Migration complete ==="
 echo "Now on: $(git remote get-url origin)  ($(git rev-parse --abbrev-ref HEAD))"
 echo "HEAD:   $(git log -1 --oneline)"
 echo "Web UI: http://$(hostname -I 2>/dev/null | awk '{print $1}'):7777"
+if [ "$START_FAILED" -eq 1 ]; then
+    echo "The code and packages are migrated, but frame.service did not start (see the warning above)."
+    exit 1
+fi
