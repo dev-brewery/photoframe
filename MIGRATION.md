@@ -146,7 +146,15 @@ Look for `display` entries in the output. The detection order is: KMS/DRM, xrand
 
 ### Configuration not preserved
 
-If settings are missing, restore from backup:
+If settings are missing, restore them from the backup.
+
+After the migration script (it saves `/root/photoframe_config.backup.<date-time>.tar.gz`):
+```bash
+tar -xzf /root/photoframe_config.backup.<date-time>.tar.gz -C /root
+systemctl restart frame.service
+```
+
+After the by-hand steps (step 2 saves `/root/photoframe_config.bak`):
 ```bash
 cp -r /root/photoframe_config.bak/* /root/photoframe_config/
 systemctl restart frame.service

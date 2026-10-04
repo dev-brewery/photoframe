@@ -248,28 +248,30 @@ class drivers:
 				logging.exception(f'Failed to copy "{copy["src"]}" to "{copy["dst"]}"')
 				return None
 
-		# Next, load the config.txt and insert/replace our section
-		lines = []
-		try:
-			with open(path.CONFIG_TXT, 'r') as f:
-				for line in f:
-					line = line.strip()
-					if line == drivers.MARKER:
-						break
-					lines.append(line)
-		except:
-			logging.exception(f'Failed to read {path.CONFIG_TXT}')
-			return None
+		# Next, load the config.txt and insert/replace our section. Hold the lock from
+		# reading to writing so a settings change at the same time is not lost.
+		with sysconfig.CONFIG_LOCK:
+			lines = []
+			try:
+				with open(path.CONFIG_TXT, 'r') as f:
+					for line in f:
+						line = line.strip()
+						if line == drivers.MARKER:
+							break
+						lines.append(line)
+			except:
+				logging.exception(f'Failed to read {path.CONFIG_TXT}')
+				return None
 
-		# Add our options
-		if len(config['config']) > 0:
-			lines.append(drivers.MARKER)
-			for entry in config['config']:
-				lines.append(entry)
+			# Add our options
+			if len(config['config']) > 0:
+				lines.append(drivers.MARKER)
+				for entry in config['config']:
+					lines.append(entry)
 
-		# Save the new file (synced, swapped in with a single rename, #111)
-		if not sysconfig.replaceConfigFile(''.join(f'{line}\n' for line in lines)):
-			return None
+			# Save the new file (synced, swapped in with a single rename, #111)
+			if not sysconfig.replaceConfigFile(''.join(f'{line}\n' for line in lines)):
+				return None
 		if 'special' in config:
 			return config['special']
 		else:

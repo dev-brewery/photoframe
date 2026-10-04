@@ -101,7 +101,8 @@ if [ -f "$REPO_DIR/frame.service" ]; then
     systemctl enable frame.service
 fi
 
-# Restart only if the service was running before, or if it's now enabled.
+# Start the service. The unit is enabled above whenever the repo has frame.service,
+# so after a migration the frame always runs.
 START_FAILED=0
 if [ "$SERVICE_WAS_RUNNING" -eq 1 ] || systemctl is-enabled --quiet frame.service; then
     echo "Starting frame.service..."
@@ -117,11 +118,12 @@ if [ "$SERVICE_WAS_RUNNING" -eq 1 ] || systemctl is-enabled --quiet frame.servic
 fi
 
 echo
-echo "=== Migration complete ==="
+if [ "$START_FAILED" -eq 1 ]; then
+    echo "=== Migration done, but frame.service did not start ==="
+else
+    echo "=== Migration complete ==="
+fi
 echo "Now on: $(git remote get-url origin)  ($(git rev-parse --abbrev-ref HEAD))"
 echo "HEAD:   $(git log -1 --oneline)"
 echo "Web UI: http://$(hostname -I 2>/dev/null | awk '{print $1}'):7777"
-if [ "$START_FAILED" -eq 1 ]; then
-    echo "The code and packages are migrated, but frame.service did not start (see the warning above)."
-    exit 1
-fi
+exit "$START_FAILED"
