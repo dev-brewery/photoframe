@@ -102,7 +102,8 @@ fi
 # Restart only if the service was running before, or if it's now enabled.
 if [ "$SERVICE_WAS_RUNNING" -eq 1 ] || systemctl is-enabled --quiet frame.service; then
     echo "Starting frame.service..."
-    systemctl start frame.service
+    # Do not let a failed start end the script before it reports the state below.
+    systemctl start frame.service || true
     sleep 2
     systemctl is-active --quiet frame.service && echo "frame.service is active." \
         || echo "WARNING: frame.service is not active after start."
