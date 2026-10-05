@@ -30,8 +30,8 @@ if [ ! -d "$REPO_DIR/.git" ]; then
 fi
 
 # The fork supports Raspberry Pi OS Bullseye (11) and later, the same releases as
-# install.sh. Older releases lack packages it installs from apt or the Python
-# version it needs (3.8 or later). Stop before touching anything on those.
+# install.sh. Buster is not tested or supported; Stretch's Python 3.5 cannot run the
+# code and its archive lacks packages. Stop before touching anything on those.
 OS_VERSION="$(. /etc/os-release 2>/dev/null; echo "${VERSION_ID:-}")"
 if [ -n "$OS_VERSION" ] && [ "${OS_VERSION%%.*}" -lt 11 ] 2>/dev/null; then
     echo "ERROR: this system is release $OS_VERSION; the migration needs Raspberry Pi OS Bullseye (11) or later."

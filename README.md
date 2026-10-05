@@ -16,7 +16,7 @@ It also has features like ambient color temperature adjustment, ambient light po
 - **Immich integration** - display photos from your self-hosted [Immich](https://immich.app/) server (recommended)
 - **HEIC/HEIF support** - display Apple photos without conversion issues
 - **Python 3** - modern, maintained codebase
-- **Modern display detection** - automatic fallback from KMS/DRM to xrandr to fbset to tvservice
+- **Works without tvservice** - on current Raspberry Pi OS, where `tvservice` is gone, the display size is read from the framebuffer; where the `tvservice` command is installed, it is still used
 - **Multi-architecture** - supports both 32-bit (armhf) and 64-bit (arm64) Raspberry Pi OS
 - Simple web interface for configuration (port 7777)
 - Google Photos search integration (deprecated due to API changes - [details](GOOGLE_PHOTOS.md))
@@ -31,8 +31,9 @@ It also has features like ambient color temperature adjustment, ambient light po
 ## requirements
 
 - Raspberry Pi (Zero, Zero 2W, 1, 3, 4, or 5)
+- Raspberry Pi OS Bullseye, Bookworm or Trixie. Buster and older releases are not supported; on those, flash the SD card image (Option 2)
 - Display (HDMI or SPI/DPI)
-- Python 3
+- Python 3, as shipped with those releases
 - Photo source: [Immich](https://immich.app/) server, USB storage, or URL source
 - Internet (for Immich; not required for USB)
 
@@ -155,7 +156,7 @@ For detailed Immich setup instructions, see [README-Immich.md](README-Immich.md)
 | Python version | Python 2 | **Python 3** |
 | Immich support | No | **Yes** |
 | HEIC/HEIF images | No | **Yes** |
-| Display detection | tvservice only | **KMS/DRM + xrandr + fbset + tvservice fallback** |
+| Display detection | tvservice only | **tvservice, or the framebuffer (`fbset`) where tvservice is missing** |
 | Pi 4/5 support | Limited | **Full (armhf + arm64)** |
 | Google Photos | Functional (pre-API change) | Deprecated (API removed by Google) |
 | Picasa Web | Present (non-functional) | Removed |
@@ -233,12 +234,13 @@ Avoid modifying files in `/root/photoframe/` directly, as this will prevent auto
 
 ### My display shows nothing or the wrong resolution
 
-Most HDMI monitors are auto-detected via EDID. If you're driving an atypical panel (e.g. an HDMI-to-LVDS adapter board feeding a laptop LCD) that doesn't report EDID, you'll need to force the mode manually. The right place to do this depends on which Raspberry Pi OS release you're on, because Bookworm and Bullseye use different display stacks.
+Most HDMI monitors are auto-detected via EDID. If you're driving an atypical panel (e.g. an HDMI-to-LVDS adapter board feeding a laptop LCD) that doesn't report EDID, you'll need to force the mode manually. The right place to do this depends on which display driver is active. Stock Raspberry Pi OS Bullseye, Bookworm and Trixie all use the KMS driver (`dtoverlay=vc4-kms-v3d` in `config.txt`).
 
-**On Bookworm (KMS driver):** custom modes go on the kernel command line, not in `config.txt`. Legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` / `hdmi_force_hotplug` settings in `config.txt` are silently ignored under the `vc4-kms-v3d` driver.
+**With the KMS driver (the default):** custom modes go on the kernel command line, not in `config.txt`. Legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` / `hdmi_force_hotplug` settings in `config.txt` are silently ignored under the `vc4-kms-v3d` driver. The file is `/boot/firmware/cmdline.txt` on Bookworm and Trixie, `/boot/cmdline.txt` on Bullseye.
 
 ```bash
-sudo nano /boot/firmware/cmdline.txt
+sudo nano /boot/firmware/cmdline.txt   # Bookworm and Trixie
+sudo nano /boot/cmdline.txt            # Bullseye
 ```
 
 `cmdline.txt` is a single line — do not add newlines. Append (with a leading space):
@@ -249,10 +251,11 @@ video=HDMI-A-1:1366x768MR@60D
 
 Replace `1366x768` with your panel's native resolution. Flag meanings: `M` = CVT timings, `R` = reduced blanking, `@60` = refresh rate, `D` = force DVI-style output and treat the port as connected even without HPD (required because most adapter boards don't assert HPD). Reboot to apply.
 
-**On Bullseye (legacy firmware display path):** the traditional `config.txt` knobs still work.
+**On the legacy firmware display stack** (only if the `vc4-kms-v3d` line has been removed from `config.txt`): the traditional `config.txt` knobs still work.
 
 ```bash
-sudo nano /boot/config.txt
+sudo nano /boot/firmware/config.txt   # Bookworm and Trixie
+sudo nano /boot/config.txt            # Bullseye
 ```
 
 Add:
@@ -266,9 +269,17 @@ hdmi_cvt=1366 768 60 3 0 0 1
 
 Replace `1366 768` with your panel's native resolution. `hdmi_mode=87` is the "use custom CVT" slot that activates `hdmi_cvt`; `hdmi_force_hotplug=1` is required because most driver boards don't assert HPD. Reboot to apply.
 
+photoframe uses the `tvservice` command wherever it is installed, which includes stock Bullseye. That support is being deprecated: Raspberry Pi OS stopped shipping `tvservice` with Bookworm, the code path is no longer developed, and it has known problems. If you need it, open an issue on this repository; it can be updated under the project's normal release process.
+
+### The picture became enlarged and cut off after I re-plugged the HDMI cable
+
+Reboot the frame with the cable connected.
+
+Seen on a Raspberry Pi 4 on Bookworm: when the HDMI cable is unplugged and plugged back in while the frame is running, the Pi can fail to re-read the monitor's identification (EDID) and drops the screen to 1024x768. The framebuffer photoframe draws into keeps the size it was given at boot, so the screen shows only its top-left part. A reboot reads the monitor again and sizes the screen and the framebuffer correctly.
+
 ### Are there logs?
 
-On Bookworm: `journalctl -u frame.service -f` (or the in-UI log viewer under **Settings**, which falls back to `journalctl` automatically when `/var/log/syslog` is absent — Bookworm Lite doesn't ship `rsyslog`).
+On Bookworm and Trixie: `journalctl -u frame.service -f`, or the **Log report** button in the System box of the web UI, which shows the last 100 lines. It reads `journalctl` automatically when there is no traditional log file such as `/var/log/syslog`; Bookworm Lite and Trixie Lite don't ship `rsyslog`.
 
 On older releases that still have `rsyslog`: `/var/log/syslog` works too (search for `frame` or `photoframe`).
 
