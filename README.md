@@ -239,7 +239,8 @@ Most HDMI monitors are auto-detected via EDID. If you're driving an atypical pan
 **With the KMS driver (the default):** custom modes go on the kernel command line, not in `config.txt`. Legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` / `hdmi_force_hotplug` settings in `config.txt` are silently ignored under the `vc4-kms-v3d` driver. The file is `/boot/firmware/cmdline.txt` on Bookworm and Trixie, `/boot/cmdline.txt` on Bullseye.
 
 ```bash
-sudo nano /boot/firmware/cmdline.txt
+sudo nano /boot/firmware/cmdline.txt   # Bookworm and Trixie
+sudo nano /boot/cmdline.txt            # Bullseye
 ```
 
 `cmdline.txt` is a single line — do not add newlines. Append (with a leading space):
@@ -252,10 +253,9 @@ Replace `1366x768` with your panel's native resolution. Flag meanings: `M` = CVT
 
 **On the legacy firmware display stack** (only if the `vc4-kms-v3d` line has been removed from `config.txt`): the traditional `config.txt` knobs still work.
 
-photoframe's support for this stack, which relies on the `tvservice` command, is deprecated. Raspberry Pi OS stopped shipping `tvservice` with Bookworm, and that code path is no longer developed and has known problems. If you need it, open an issue on this repository; it can be updated in a later release.
-
 ```bash
-sudo nano /boot/config.txt
+sudo nano /boot/firmware/config.txt   # Bookworm and Trixie
+sudo nano /boot/config.txt            # Bullseye
 ```
 
 Add:
@@ -269,6 +269,8 @@ hdmi_cvt=1366 768 60 3 0 0 1
 
 Replace `1366 768` with your panel's native resolution. `hdmi_mode=87` is the "use custom CVT" slot that activates `hdmi_cvt`; `hdmi_force_hotplug=1` is required because most driver boards don't assert HPD. Reboot to apply.
 
+photoframe uses the `tvservice` command wherever it is installed, which includes stock Bullseye. That support is being deprecated: Raspberry Pi OS stopped shipping `tvservice` with Bookworm, the code path is no longer developed, and it has known problems. If you need it, open an issue on this repository; it can be updated under the project's normal release process.
+
 ### The picture became enlarged and cut off after I re-plugged the HDMI cable
 
 Reboot the frame with the cable connected.
@@ -277,7 +279,7 @@ Seen on a Raspberry Pi 4 on Bookworm: when the HDMI cable is unplugged and plugg
 
 ### Are there logs?
 
-On Bookworm: `journalctl -u frame.service -f`, or the **Log report** button in the System box of the web UI, which shows the last 100 lines. It reads `journalctl` automatically when there is no traditional log file such as `/var/log/syslog`; Bookworm Lite doesn't ship `rsyslog`.
+On Bookworm and Trixie: `journalctl -u frame.service -f`, or the **Log report** button in the System box of the web UI, which shows the last 100 lines. It reads `journalctl` automatically when there is no traditional log file such as `/var/log/syslog`; Bookworm Lite and Trixie Lite don't ship `rsyslog`.
 
 On older releases that still have `rsyslog`: `/var/log/syslog` works too (search for `frame` or `photoframe`).
 
