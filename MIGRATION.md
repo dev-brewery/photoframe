@@ -16,6 +16,8 @@ Your existing configuration (`/root/photoframe_config/`) is preserved during mig
 
 If you installed photoframe by cloning the repo to `/root/photoframe`, you can use the migration script or do the same steps by hand.
 
+The migration needs Raspberry Pi OS Bullseye or later, the same releases the install script supports. Older releases such as Buster and Stretch lack packages the fork installs or the Python version it needs (3.8 or later); on those, flash the current image instead (Scenario B). The script checks this and stops before changing anything.
+
 ### With the migration script
 
 ```bash
@@ -37,8 +39,11 @@ It can be run again without harm. If photoframe is not in `/root/photoframe`, se
 ### By hand
 
 ```bash
+# Run everything below as root
+sudo su -
+
 # 1. Stop the service
-sudo systemctl stop frame.service
+systemctl stop frame.service
 
 # 2. Back up your configuration
 cp -r /root/photoframe_config /root/photoframe_config.bak
@@ -50,19 +55,19 @@ git fetch origin
 git checkout 3.0.0
 git pull
 
-# 4. Install Python 3 dependencies
+# 4. Install the dependencies (the same list as install.sh; all from apt, no pip)
 apt-get update
-apt-get install -y python3 python3-pip python3-netifaces python3-flask python3-requests
-pip3 install -r requirements.txt
+apt-get install -y python3 python3-smbus \
+    python3-netifaces python3-flask python3-requests \
+    python3-oauthlib python3-requests-oauthlib python3-flask-httpauth \
+    imagemagick fbset git bc libjpeg-turbo-progs libheif-examples openssh-server
 
-# 5. Optional: HEIC/HEIF image support (for Apple photos)
-apt-get install -y libheif-examples
-
-# 6. Update the service file
+# 5. Update the service file
 cp frame.service /etc/systemd/system/
 systemctl daemon-reload
+systemctl enable frame.service
 
-# 7. Restart
+# 6. Restart
 systemctl start frame.service
 ```
 
@@ -70,19 +75,20 @@ Verify via the web UI at `http://<your-pi-ip>:7777`.
 
 ## Scenario B: Existing SD card image install
 
-If you used one of mrworf's pre-built SD card images, follow the same steps as Scenario A. The SD card images used Python 2 system packages, so you will need to install the Python 3 packages listed in step 4.
+mrworf's pre-built SD card images (2018 and 2019) are Raspbian Stretch, which the migration does not support (see Scenario A). Download the latest image from the [releases page](https://github.com/dev-brewery/photoframe/releases) and flash it to a new SD card. Your configuration from the old install will need to be set up again.
 
-If you prefer a fresh start, download the latest image from the [releases page](https://github.com/dev-brewery/photoframe/releases) and flash it to a new SD card. Your configuration from the old install will need to be set up again.
+If you have since upgraded that system to a release Scenario A supports, you can follow Scenario A instead.
 
 ## Scenario C: Fresh install (no existing photoframe)
 
-Use the install script on a clean Raspberry Pi OS (Bookworm or Bullseye, 32-bit or 64-bit):
+Use the install script on a clean Raspberry Pi OS (Bullseye, Bookworm or Trixie, 32-bit or 64-bit):
 
 ```bash
+sudo apt-get update -y && sudo apt upgrade -y
+sudo apt install -y git
 sudo su -
 git clone https://github.com/dev-brewery/photoframe.git /root/photoframe
 cd /root/photoframe
-chmod +x install.sh
 ./install.sh
 systemctl start frame.service
 ```
@@ -144,7 +150,15 @@ Look for lines mentioning the display or the framebuffer (in either case) in the
 
 ### Configuration not preserved
 
-If settings are missing, restore from backup:
+If settings are missing, restore them from the backup.
+
+After the migration script (it saves `/root/photoframe_config.backup.<date-time>.tar.gz`):
+```bash
+tar -xzf /root/photoframe_config.backup.<date-time>.tar.gz -C /root
+systemctl restart frame.service
+```
+
+After the by-hand steps (step 2 saves `/root/photoframe_config.bak`):
 ```bash
 cp -r /root/photoframe_config.bak/* /root/photoframe_config/
 systemctl restart frame.service

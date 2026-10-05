@@ -135,7 +135,14 @@ $("input[type='text']").change(function() {
   }
   validate = $(this).data('validate');
   if (validate) {
-    $(this).val(eval('valid.' + validate + '($(this).val());'));
+    validated = eval('valid.' + validate + '($(this).val());');
+    if (validated === null) {
+      // The validator rejected the input, nothing is saved
+      alert('That is not a valid value for this setting, it has not been changed.');
+      document.location.reload();
+      return;
+    }
+    $(this).val(validated);
   }
   console.log("/setting/" + $(this).attr('name') + "/" + $(this).val());
   $.ajax({

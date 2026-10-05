@@ -40,17 +40,19 @@ It also has features like ambient color temperature adjustment, ambient light po
 
 ### Option 1: Fresh install script (recommended for new setups)
 
-On a clean Raspberry Pi OS (Bookworm or Bullseye):
+On a clean Raspberry Pi OS (Bullseye, Bookworm or Trixie):
 
 ```bash
+sudo apt-get update -y && sudo apt upgrade -y
+sudo apt install -y git
 sudo su -
 git clone https://github.com/dev-brewery/photoframe.git /root/photoframe
 cd /root/photoframe
-chmod +x install.sh
 ./install.sh
+systemctl start frame.service
 ```
 
-The installer handles all dependencies, service setup, and auto-update configuration. After installation, the web UI is available at `http://<your-pi-ip>:7777`.
+The installer handles all dependencies, service setup, and auto-update configuration. It does not start the service; the last line above does, and it starts on its own at every boot from then on. The web UI is then available at `http://<your-pi-ip>:7777`.
 
 A script install has no web UI login: anyone on your network can open the page. To add one, see [web UI login](#web-ui-login).
 
@@ -110,7 +112,7 @@ The image's time zone is `Europe/London`. Choose your own under **Time zone** on
 
 ### Option 3: Manual install
 
-See [MANUAL.md](MANUAL.md) for a step-by-step walkthrough that mirrors what `install.sh` does, for users who want to understand every step or reproduce it on a system where the scripted path doesn't fit.
+See [MANUAL.md](MANUAL.md) for a step-by-step walkthrough that installs the same packages as `install.sh`, adds the boot, console and time zone settings the script leaves to you, and makes the nightly update optional, for users who want to understand every step or reproduce it on a system where the scripted path doesn't fit.
 
 ### Option 4: Migrate from mrworf/photoframe
 
@@ -193,11 +195,7 @@ The pin is the **GPIO to monitor for shutdown interrupts** setting on the web UI
 
 GPIO 3 is the sensor's I2C clock line, which is why a frame with the sensor uses GPIO 26 instead. Connecting GPIO 3 to ground is also what wakes a halted Raspberry Pi on models that have that feature, so there the same switch turns the frame back on. GPIO 26 only shuts it down.
 
-A frame that already has a pin number saved keeps that number. The settings page accepts only numbers, so to go back to `auto` use the API (add `-u <user>:<password>` if the web UI has a login):
-
-```bash
-curl -X PUT http://<pi-ip>:7777/setting/shutdown-pin/auto
-```
+A frame that already has a pin number saved keeps that number. To go back to automatic selection, type `auto` into the setting. The field accepts only `auto` or a GPIO number.
 
 ## FAQ
 

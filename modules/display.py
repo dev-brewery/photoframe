@@ -57,7 +57,6 @@ class display:
         self.emulate = use_emulator
         self.emulate_width = emulate_width
         self.emulate_height = emulate_height
-        self.rotated = sysconfig.isDisplayRotated()
         self.xoffset = 0
         self.yoffset = 0
         self.url = None
@@ -72,6 +71,12 @@ class display:
         self.has_tvservice = self._determine_display_method()
         if not self.has_tvservice:
             logging.info('tvservice not available, using modern display detection methods')
+
+        # Swap width and height for display_rotate only on the legacy firmware display
+        # stack, where tvservice reports the unrotated display mode. Without tvservice
+        # the size is read from the framebuffer as it is. Under KMS display_rotate is
+        # ignored (#109), and under fake KMS the framebuffer is not rotated.
+        self.rotated = self.has_tvservice and not sysconfig.usesVC4DisplayDriver() and sysconfig.isDisplayRotated()
 
     def _cleanup(self):
         if hasattr(self, 'void') and self.void:

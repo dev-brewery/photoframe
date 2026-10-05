@@ -61,6 +61,7 @@ def _get_session():
 #
 class BaseService:
   REFRESH_DELAY = 60*60 # Number of seconds before we refresh the index in case no photos
+  RETRY_DELAY = 60 # Number of seconds before we try again when refreshing the index failed
   SERVICE_DEPRECATED = False
 
   STATE_ERROR = -1
@@ -104,6 +105,7 @@ class BaseService:
     self._NEED_OAUTH = needOAuth
     self._NEED_IMMICH_CONFIG = needImmichConfig
     self._IMAGE_CACHE = {}
+    self._SCAN_FAILED = set() # Keywords whose last refresh failed and are waiting for a retry
 
     self._DIR_BASE = self._prepareFolders(configDir)
     self._DIR_PRIVATE = os.path.join(self._DIR_BASE, 'private')
@@ -204,8 +206,7 @@ class BaseService:
       for keyword in self.getKeywords():
         if keyword not in self._STATE["_NUM_IMAGES"] or keyword not in self._STATE['_NEXT_SCAN'] or self._STATE['_NEXT_SCAN'][keyword] < time.time():
           logging.debug('Keywords either not scanned or we need to scan now')
-          self._getImagesFor(keyword) # Will make sure to get images
-          self._STATE['_NEXT_SCAN'][keyword] = time.time() + self.REFRESH_DELAY
+          self._getImagesFor(keyword) # Will make sure to get images and schedule the next scan
         sum = sum + self._STATE["_NUM_IMAGES"].get(keyword, 0)
     return sum
 
@@ -502,20 +503,30 @@ class BaseService:
     return result
 
   def _getImagesFor(self, keyword):
-    # Return cached images if the scan is still fresh
     now = time.time()
     next_scan = self._STATE['_NEXT_SCAN'].get(keyword, 0)
-    if next_scan > now and keyword in self._IMAGE_CACHE:
-      return self._IMAGE_CACHE[keyword]
+    if next_scan > now:
+      # Return cached images if the scan is still fresh
+      if keyword in self._IMAGE_CACHE:
+        return self._IMAGE_CACHE[keyword]
+      # The last scan failed and left nothing to show, wait for the retry
+      if keyword in self._SCAN_FAILED:
+        return None
 
     images = self.getImagesFor(keyword)
     if images is None:
-      logging.warning('Function returned None, this is used sometimes when a temporary error happens. Still logged')
+      # None means a temporary error (no network, server not answering).
+      # Keep what we know about this keyword and try again soon, it is not empty.
+      logging.warning(f'Unable to refresh the images for "{keyword}", keeping the previous list and trying again in {self.RETRY_DELAY} seconds')
+      self._STATE['_NEXT_SCAN'][keyword] = now + self.RETRY_DELAY
+      self._SCAN_FAILED.add(keyword)
+      return self._IMAGE_CACHE.get(keyword)
 
-    if images is not None and len(images) > 0:
+    self._SCAN_FAILED.discard(keyword)
+    # Change next time for refresh (postpone if you will)
+    self._STATE['_NEXT_SCAN'][keyword] = now + self.REFRESH_DELAY
+    if len(images) > 0:
       self._STATE["_NUM_IMAGES"][keyword] = len(images)
-      # Change next time for refresh (postpone if you will)
-      self._STATE['_NEXT_SCAN'][keyword] = now + self.REFRESH_DELAY
       self._IMAGE_CACHE[keyword] = images
     else:
       self._STATE["_NUM_IMAGES"][keyword] = 0
@@ -543,6 +554,7 @@ class BaseService:
     self._STATE["_NUM_IMAGES"].pop(keyword, None)
     self._STATE['_NEXT_SCAN'].pop(keyword, None)
     self._IMAGE_CACHE.pop(keyword, None)
+    self._SCAN_FAILED.discard(keyword)
     self.memory.forget(keyword)
     self.clearImagesFor(keyword)
 

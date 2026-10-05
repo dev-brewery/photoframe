@@ -336,6 +336,10 @@ class Immich(BaseService):
         """Get images for keyword from Immich album.
 
         The album endpoint returns full asset metadata - no need for individual asset calls.
+
+        Returns None when the request failed for a reason that can pass (no network,
+        server not answering), so the caller keeps the previous list and retries soon.
+        An empty list means the album really has nothing to show.
         """
         logging.debug(f'Immich getImagesFor: keyword="{keyword}"')
 
@@ -356,8 +360,11 @@ class Immich(BaseService):
         try:
             response = requests.get(album_url, headers=headers, timeout=30)
             if not response.ok:
-                logging.warning(f'Immich API call failed with status {response.status_code}')
-                return []
+                logging.warning(f'Immich API call for album "{keyword}" failed with status {response.status_code}')
+                if RetryConfig.is_terminal_code(response.status_code):
+                    # Album is gone or the key is not accepted, retrying soon will not help
+                    return []
+                return None
 
             album_data = response.json()
             assets = album_data.get('assets', [])
@@ -369,7 +376,7 @@ class Immich(BaseService):
 
         except Exception as e:
             logging.error(f'Failed to get images for keyword "{keyword}": {e}')
-            return []
+            return None
 
         # Cache to JSON file
         filename = os.path.join(self.getStoragePath(), self.hashString(keyword) + '.json')
@@ -651,7 +658,7 @@ class Immich(BaseService):
         elif state == BaseService.STATE_NEED_KEYWORDS:
             return 'Add album names as keywords to specify which Immich albums to display photos from.'
         elif state == BaseService.STATE_NO_IMAGES:
-            return 'Immich service configured. Add album keywords to display photos from your Immich albums.'
+            return 'The configured albums returned no photos. Check that they still exist and contain photos, and that the API key is still valid.'
         elif state == BaseService.STATE_READY:
             return 'Immich service ready. Real photo retrieval available from configured albums.'
         return None
