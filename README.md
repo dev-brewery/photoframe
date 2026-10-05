@@ -31,8 +31,9 @@ It also has features like ambient color temperature adjustment, ambient light po
 ## requirements
 
 - Raspberry Pi (Zero, Zero 2W, 1, 3, 4, or 5)
+- Raspberry Pi OS Bullseye, Bookworm or Trixie. Buster and older releases are not supported; on those, flash the SD card image (Option 2)
 - Display (HDMI or SPI/DPI)
-- Python 3
+- Python 3, as shipped with those releases
 - Photo source: [Immich](https://immich.app/) server, USB storage, or URL source
 - Internet (for Immich; not required for USB)
 
@@ -233,9 +234,9 @@ Avoid modifying files in `/root/photoframe/` directly, as this will prevent auto
 
 ### My display shows nothing or the wrong resolution
 
-Most HDMI monitors are auto-detected via EDID. If you're driving an atypical panel (e.g. an HDMI-to-LVDS adapter board feeding a laptop LCD) that doesn't report EDID, you'll need to force the mode manually. The right place to do this depends on which Raspberry Pi OS release you're on, because Bookworm and Bullseye use different display stacks.
+Most HDMI monitors are auto-detected via EDID. If you're driving an atypical panel (e.g. an HDMI-to-LVDS adapter board feeding a laptop LCD) that doesn't report EDID, you'll need to force the mode manually. The right place to do this depends on which display driver is active. Stock Raspberry Pi OS Bullseye, Bookworm and Trixie all use the KMS driver (`dtoverlay=vc4-kms-v3d` in `config.txt`).
 
-**On Bookworm (KMS driver):** custom modes go on the kernel command line, not in `config.txt`. Legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` / `hdmi_force_hotplug` settings in `config.txt` are silently ignored under the `vc4-kms-v3d` driver.
+**With the KMS driver (the default):** custom modes go on the kernel command line, not in `config.txt`. Legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` / `hdmi_force_hotplug` settings in `config.txt` are silently ignored under the `vc4-kms-v3d` driver. The file is `/boot/firmware/cmdline.txt` on Bookworm and Trixie, `/boot/cmdline.txt` on Bullseye.
 
 ```bash
 sudo nano /boot/firmware/cmdline.txt
@@ -249,7 +250,9 @@ video=HDMI-A-1:1366x768MR@60D
 
 Replace `1366x768` with your panel's native resolution. Flag meanings: `M` = CVT timings, `R` = reduced blanking, `@60` = refresh rate, `D` = force DVI-style output and treat the port as connected even without HPD (required because most adapter boards don't assert HPD). Reboot to apply.
 
-**On Bullseye (legacy firmware display path):** the traditional `config.txt` knobs still work.
+**On the legacy firmware display stack** (only if the `vc4-kms-v3d` line has been removed from `config.txt`): the traditional `config.txt` knobs still work.
+
+photoframe's support for this stack, which relies on the `tvservice` command, is deprecated. Raspberry Pi OS stopped shipping `tvservice` with Bookworm, and that code path is no longer developed and has known problems. If you need it, open an issue on this repository; it can be updated in a later release.
 
 ```bash
 sudo nano /boot/config.txt

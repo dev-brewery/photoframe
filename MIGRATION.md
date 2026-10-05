@@ -16,7 +16,7 @@ Your existing configuration (`/root/photoframe_config/`) is preserved during mig
 
 If you installed photoframe by cloning the repo to `/root/photoframe`, you can use the migration script or do the same steps by hand.
 
-The migration needs Raspberry Pi OS Bullseye or later, the same releases the install script supports. Older releases such as Buster and Stretch lack packages the fork installs or the Python version it needs (3.8 or later); on those, flash the current image instead (Scenario B). The script checks this and stops before changing anything.
+The migration needs Raspberry Pi OS Bullseye or later, the same releases the install script supports. Buster is not tested or supported. Stretch cannot run the fork: its Python 3.5 is too old and its archive lacks packages the fork needs. On those, flash the current image instead (Scenario B). The script checks the release and stops before changing anything.
 
 ### With the migration script
 
