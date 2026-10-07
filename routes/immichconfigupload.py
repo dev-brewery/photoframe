@@ -91,7 +91,11 @@ class RouteImmichConfigUpload(BaseRoute):
                     return 'No Immich configuration found for this service', 404
                 
                 logging.info(f'Retrieved Immich config for service {service}')
-                return self.jsonify(config)
+                # Never send the API key back; report only whether one is stored.
+                return self.jsonify({
+                    'server_url': config.get('server_url'),
+                    'api_key_set': bool(config.get('api_key')),
+                })
                 
             except Exception as e:
                 logging.error(f'Error retrieving Immich config for service {service}: {e}')
