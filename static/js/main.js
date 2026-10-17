@@ -283,7 +283,8 @@ $("#update").click(function() {
         }).done(function(data){
           msg = 'Last change to codebase was ' + data.date + "\n\n";
           msg += 'Running variant "' + data.branch + '"';
-          if (data.branch != 'master')
+          // Supported: master and the release branches (X.Y.Z, X.Y.Z-rcN)
+          if (!/^(master|\d+\.\d+\.\d+(-rc\d+)?)$/.test(data.branch))
             msg += ' (unsupported)';
           msg += '\n\nChange id: ' + data.commit;
           alert(msg);
