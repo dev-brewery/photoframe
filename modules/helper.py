@@ -107,7 +107,9 @@ class helper:
 		ip = None
 		try:
 			s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-			s.connect(("photoframe.sensenet.nu", 80))
+			# connect() on a UDP socket sends nothing, it only picks the route and local address.
+			# A literal address (TEST-NET-1, RFC 5737) means no DNS lookup and no third-party host.
+			s.connect(("192.0.2.1", 80))
 			ip = s.getsockname()[0]
 
 			s.close()
