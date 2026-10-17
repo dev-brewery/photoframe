@@ -180,12 +180,29 @@ class slideshow:
         time.sleep(1.0 - time_process)
     self.display.clear()
 
+  def waitForNetworkEnded(self):
+    # Stop waiting if we were stopped or the user no longer wants us to wait
+    return not self.running or self.settings.getUser('offline-behavior') != 'wait'
+
+  def waitForNetworkPause(self, seconds):
+    # Unlike sleep, stop() and events wake us up
+    self.delayer.wait(seconds)
+    self.delayer.clear()
+
   def waitForNetwork(self):
     self.imageCurrent = None
-    helper.waitForNetwork(
-      lambda: self.display.message('No internet connection\n\nCheck router, /boot/firmware/wifi-config.txt, or cable'),
-      lambda: self.settings.getUser('offline-behavior') != 'wait'
+    online = helper.waitForNetwork(
+      lambda: self.display.message('Waiting for network connection'),
+      self.waitForNetworkEnded,
+      funcSleep=self.waitForNetworkPause
     )
+    # Timed out, keep checking until a connection succeeds
+    while not online and not self.waitForNetworkEnded():
+      online = helper.waitForNetwork(
+        lambda: self.display.message('No internet connection\n\nCheck router, /boot/firmware/wifi-config.txt, or cable'),
+        self.waitForNetworkEnded,
+        funcSleep=self.waitForNetworkPause
+      )
     self.display.setConfigPage(f'http://{helper.getDeviceIp()}:7777/')
 
   def handleErrors(self, result):
@@ -287,9 +304,10 @@ class slideshow:
       self.waitForNetwork()
 
     # Only now, since checking the services' state may fetch their photo lists
-    self.services.getServices(readyOnly=True)
+    if self.running:
+      self.services.getServices(readyOnly=True)
 
-    if not slideshow.SHOWN_IP:
+    if not slideshow.SHOWN_IP and self.running:
       self.startupScreen()
 
     logging.info('Starting presentation')
@@ -322,6 +340,11 @@ class slideshow:
           continue
         elif offline == 'ignore':
           pass
+
+      # Services may return an error instead of raising RequestNoNetwork, so check before showing it
+      if (result is None or result.error is not None) and self.settings.getUser('offline-behavior') == 'wait' and not helper.hasNetwork():
+        self.waitForNetwork()
+        continue
 
       if not self.handleErrors(result):
         filenameProcessed = self.process(result)
