@@ -282,11 +282,12 @@ class slideshow:
     self.imageCurrent = image
 
   def presentation(self):
-    self.services.getServices(readyOnly=True)
-
     # Make sure we have network
     if not helper.hasNetwork() and self.settings.getUser('offline-behavior') == 'wait':
       self.waitForNetwork()
+
+    # Only now, since checking the services' state may fetch their photo lists
+    self.services.getServices(readyOnly=True)
 
     if not slideshow.SHOWN_IP:
       self.startupScreen()
