@@ -1,16 +1,21 @@
 # Display Drivers
 
-Photoframe now supports uploading and enabling of internal displays for the Raspberry Pi family,
-the only requirement is that it can be supported by the currently used kernel and modules.
+Photoframe supports uploading and enabling of internal displays for the Raspberry Pi family.
+The only requirement is that the display can be supported by the currently used kernel and
+modules.
 
-Since a lot of the smaller displays rely on the built-in fbtft driver, it means that in many
-cases, all you really need is a DeviceTree Overlay, essentially configuration files for the
-device driver so it knows how to talk to the new display.
+Since many smaller displays rely on the built-in fbtft driver, all you often need is a
+DeviceTree Overlay — configuration files that tell the device driver how to talk to the display.
 
-## What's included
+## Bundled drivers
 
-Today, only the waveshare 3.5" IPS (model B) is provided since that was my development system.
-But you can create and share these display "drivers" easily yourself.
+| Driver | Display | Type | Notes |
+|--------|---------|------|-------|
+| `waveshare35a.zip` | Waveshare 3.5" (model A) | SPI/fbtft | 320x480, resistive touch |
+| `waveshare35b.zip` | Waveshare 3.5" IPS (model B) | SPI/fbtft | 320x480, IPS panel, BGR subpixel |
+| `waveshare7.zip` | Waveshare 7" | DPI | 1024x600, no overlay needed |
+
+Upload these via the web UI's "Upload new driver" button, then select the driver from the dropdown.
 
 ## How to write a display driver package
 
@@ -86,6 +91,29 @@ the driver.
 
 Simply upload it again. The old driver will be deleted and replaced with the new one.
 
-## This all seem complicated, do you have an example?
+## This all seems complicated, do you have an example?
 
-Sure, just unzip the `waveshare35b.zip` and look at it for guidance.
+Sure, just unzip `waveshare35b.zip` and look at it for guidance.
+
+## Contributing a new driver
+
+Want to share a driver for a display that isn't bundled? Follow this checklist:
+
+1. **Test thoroughly** on your own hardware first
+2. **Create the driver package** following the format above
+3. **Validate the package** using the validation script:
+   ```bash
+   python3 display-drivers/validate-driver.py your-driver.zip
+   ```
+4. **Open a pull request** with:
+   - The `.zip` file added to `display-drivers/`
+   - A brief description of the display hardware
+   - Confirmation of which Pi model(s) you tested on
+
+### Driver submission checklist
+
+- [ ] INSTALL file present with `[install]` and `[config]` sections
+- [ ] All referenced files exist in the package
+- [ ] No absolute paths in the package (paths are relative to INSTALL)
+- [ ] Tested on real hardware
+- [ ] Works with current Raspberry Pi OS (Bookworm)
