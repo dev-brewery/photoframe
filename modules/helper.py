@@ -384,16 +384,17 @@ class helper:
 		return helper._checkNetwork() is not None
 
 	@staticmethod
-	def waitForNetwork(funcNoNetwork, funcExit, timeout=60):
+	def waitForNetwork(funcNoNetwork, funcExit, timeout=60, funcSleep=time.sleep):
 		"""Wait for network connectivity with timeout.
 
 		Args:
 			funcNoNetwork: Callback when no network is available
 			funcExit: Callback that returns True to exit early
 			timeout: Maximum seconds to wait (default 60)
+			funcSleep: Called with the seconds to pause between checks (default time.sleep)
 
 		Returns:
-			True if network is available, False if timed out
+			True if network is available, False if timed out or exited early
 		"""
 		start = time.time()
 		while time.time() - start < timeout:
@@ -402,7 +403,9 @@ class helper:
 			funcNoNetwork()
 			if funcExit():
 				return False
-			time.sleep(5)
+			funcSleep(5)
+			if funcExit():
+				return False
 		return False
 
 	@staticmethod

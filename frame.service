@@ -15,7 +15,8 @@
 #
 [Unit]
 Description=Photo Frame
-After=network.target lightdm.service
+Wants=network-online.target
+After=network-online.target lightdm.service
 
 [Service]
 Type=simple
