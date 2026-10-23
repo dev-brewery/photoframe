@@ -25,10 +25,117 @@ from modules.network import RequestResult, RequestNoNetwork, RequestTerminalErro
 from modules.helper import helper
 
 
+class ImmichHttpError(Exception):
+    """Immich answered an album listing call with a non-2xx status"""
+    def __init__(self, message, status_code, search=False):
+        super().__init__(message)
+        self.status_code = status_code
+        self.search = search
+
+
+class ImmichSchemaError(Exception):
+    """The album response does not have the shape this API version expects"""
+    pass
+
+
+class ImmichNoAssetsError(ImmichSchemaError):
+    """The album response has no 'assets' field (Immich v3 removed it)"""
+    pass
+
+
+class ImmichApiBase:
+    API_VERSION = 0
+
+    def __init__(self, config):
+        self.server_url = config['server_url'].rstrip('/')
+        self.api_base = f'{self.server_url}/api'
+        self.headers = {'x-api-key': config['api_key'], 'Accept': 'application/json'}
+
+    def _request_json(self, method, path, data=None, search=False):
+        # One attempt only: getImagesFor() returns None on a transient failure
+        # and BaseService retries the album in RETRY_DELAY seconds
+        response = requests.request(method, f'{self.api_base}{path}', json=data, headers=self.headers, timeout=30)
+        if not response.ok:
+            raise ImmichHttpError(f'Immich returned HTTP {response.status_code} for {method} {path}', response.status_code, search)
+        return response.json()
+
+    def get_album_assets(self, album_id, keyword):
+        raise NotImplementedError()
+
+
+class ImmichV2Api(ImmichApiBase):
+    API_VERSION = 2
+
+    def get_album_assets(self, album_id, keyword):
+        # Immich v2 lists the album's assets in the album response
+        album = self._request_json('GET', f'/albums/{album_id}')
+        if not isinstance(album, dict) or 'assets' not in album:
+            raise ImmichNoAssetsError('Immich album response did not include assets')
+        assets = album['assets']
+        if not isinstance(assets, list):
+            raise ImmichSchemaError('Immich album assets response was not an array')
+        return assets
+
+
+class ImmichV3Api(ImmichApiBase):
+    API_VERSION = 3
+
+    def get_album_assets(self, album_id, keyword):
+        # Immich v3 removed 'assets' from the album response, the album's
+        # assets come from the metadata search instead. All pages or nothing:
+        # a partial list would replace the cached album for an hour.
+        assets = []
+        seen = set()
+        page = 1
+        while True:
+            data = {'albumIds': [album_id], 'withExif': True, 'size': 1000, 'page': page}
+            result = self._request_json('POST', '/search/metadata', data=data, search=True)['assets']
+            items = result['items']
+            if not isinstance(items, list):
+                raise ImmichSchemaError('Immich search response "items" was not an array')
+            for item in items:
+                asset_id = item.get('id')
+                if asset_id is not None:
+                    if asset_id in seen:
+                        # Same asset on two pages, the album changed between pages
+                        continue
+                    seen.add(asset_id)
+                assets.append(item)
+            next_page = result.get('nextPage')
+            if next_page is None:
+                break
+            # Immich sends nextPage as a string such as "2", page must be an int
+            next_page = int(next_page)
+            if next_page <= page:
+                raise ImmichSchemaError(f'Immich search did not advance past page {page}')
+            page = next_page
+        logging.info(f'Immich search for album "{keyword}": {len(assets)} assets in {page} page(s)')
+        return assets
+
+
+def detect_immich_api(config):
+    """Return {'major': int, 'server_url': str}, or None when the version cannot be read.
+    GET /api/server/version is public on Immich v2 and v3, it does not check the key."""
+    server_url = config['server_url'].rstrip('/')
+    try:
+        response = requests.get(f'{server_url}/api/server/version', headers={'Accept': 'application/json'}, timeout=10)
+        if response.ok:
+            data = response.json()
+            major = data.get('major') if isinstance(data, dict) else None
+            # bool is an int in Python, {"major": true} is not a version
+            if isinstance(major, int) and not isinstance(major, bool):
+                return {'major': major, 'server_url': server_url}
+        logging.info(f'Immich server version unknown (HTTP {response.status_code})')
+    except Exception as e:
+        logging.info(f'Immich server version unknown: {e}')
+    return None
+
+
 class Immich(BaseService):
     SERVICE_NAME = 'Immich'
     SERVICE_ID = 10
     MAX_ITEMS = 8000
+    API_INFO_STATE_KEY = '_IMMICH_API_INFO'
 
     def __init__(self, configDir, id, name):
         BaseService.__init__(self, configDir, id, name, needConfig=False, needOAuth=False, needImmichConfig=True)
@@ -36,6 +143,9 @@ class Immich(BaseService):
         # starts visibly with a small/fast download. Subsequent calls escalate
         # via dimension + memory + policy heuristics in getContentUrl().
         self._settled = False
+        # Keywords whose last album search (Immich v3) was refused with 403: the
+        # API key lacks asset.read. In memory only; shown by getMessages().
+        self._assetReadDenied = set()
 
     # ------------------ Configuration ------------------
 
@@ -68,6 +178,51 @@ class Immich(BaseService):
             config['server_url'] = server_url[:-1]
         logging.info('Immich configuration validated successfully')
         return True
+
+    def setImmichConfiguration(self, config):
+        # A new server URL or key may point at another Immich version
+        self._STATE.pop(self.API_INFO_STATE_KEY, None)
+        BaseService.setImmichConfiguration(self, config)
+
+    def _getImmichApi(self, config, forceDetect=False):
+        """Return the API for the server's major version, or None when it is unknown.
+        A known version is kept in state, keyed by server URL."""
+        api_info = self._STATE.get(self.API_INFO_STATE_KEY)
+        if forceDetect or not api_info or api_info.get('server_url') != config['server_url'].rstrip('/'):
+            api_info = detect_immich_api(config)
+            if api_info is None:
+                self._STATE.pop(self.API_INFO_STATE_KEY, None)
+                return None
+            self._STATE[self.API_INFO_STATE_KEY] = api_info
+            self.saveState()
+            logging.info(f'Detected Immich server major version {api_info["major"]}')
+        api = ImmichV3Api(config) if api_info['major'] >= 3 else ImmichV2Api(config)
+        api.major = api_info['major']
+        return api
+
+    def _getAlbumAssets(self, config, album_id, keyword, forceDetect=False):
+        api = self._getImmichApi(config, forceDetect)
+        if api is None:
+            # Version unknown: the album's assets when the album response has them, the search otherwise
+            try:
+                assets = ImmichV2Api(config).get_album_assets(album_id, keyword)
+                logging.info(f'Immich album "{keyword}": server major unknown, listing via the album response')
+                return assets
+            except ImmichNoAssetsError:
+                logging.info(f'Immich album "{keyword}": server major unknown, album response has no assets, listing via search')
+                return ImmichV3Api(config).get_album_assets(album_id, keyword)
+        if api.API_VERSION >= 3:
+            logging.info(f'Immich album "{keyword}": server major {api.major}, listing via search')
+        else:
+            logging.info(f'Immich album "{keyword}": server major {api.major}, listing via the album response')
+        try:
+            return api.get_album_assets(album_id, keyword)
+        except ImmichNoAssetsError:
+            if forceDetect or api.API_VERSION >= 3:
+                raise
+            # A v2 album response without assets: the server was upgraded, check its version again
+            logging.warning('Immich album response has no assets, cached server version may be stale, re-detecting')
+            return self._getAlbumAssets(config, album_id, keyword, forceDetect=True)
 
     def helpKeywords(self):
         return 'Enter an Immich album name. Matching is case-insensitive; the resolved album name will be shown after adding.'
@@ -335,7 +490,9 @@ class Immich(BaseService):
     def getImagesFor(self, keyword, rawReturn=False):
         """Get images for keyword from Immich album.
 
-        The album endpoint returns full asset metadata - no need for individual asset calls.
+        On Immich v3 the album's assets come from POST /api/search/metadata. On v2, or
+        when the version is unknown and the album response still has 'assets', they come
+        from GET /api/albums/{id}.
 
         Returns None when the request failed for a reason that can pass (no network,
         server not answering), so the caller keeps the previous list and retries soon.
@@ -353,21 +510,24 @@ class Immich(BaseService):
             logging.error('Immich configuration not found')
             return []
 
-        headers = {'x-api-key': config['api_key']}
-
-        # Fetch album - this returns full asset metadata in one call
-        album_url = f"{config['server_url']}/api/albums/{query['albumId']}"
         try:
-            response = requests.get(album_url, headers=headers, timeout=30)
-            if not response.ok:
-                logging.warning(f'Immich API call for album "{keyword}" failed with status {response.status_code}')
-                if RetryConfig.is_terminal_code(response.status_code):
+            try:
+                assets = self._getAlbumAssets(config, query['albumId'], keyword)
+            except ImmichNoAssetsError:
+                # Immich v2 server whose album response has no assets: as before
+                assets = []
+            except ImmichHttpError as e:
+                logging.warning(f'Immich API call for album "{keyword}" failed with status {e.status_code}')
+                if e.search and e.status_code == 403:
+                    logging.warning('The Immich API key needs the asset.read permission to list album photos')
+                    self._assetReadDenied.add(keyword)
+                    return []
+                if RetryConfig.is_terminal_code(e.status_code):
                     # Album is gone or the key is not accepted, retrying soon will not help
                     return []
                 return None
 
-            album_data = response.json()
-            assets = album_data.get('assets', [])
+            self._assetReadDenied.discard(keyword)
             if not assets:
                 logging.warning(f'No assets found in album for keyword "{keyword}"')
                 return []
@@ -643,6 +803,12 @@ class Immich(BaseService):
 
     def getMessages(self):
         msgs = BaseService.getMessages(self)
+        if any(k in self._assetReadDenied for k in self.getKeywords()):
+            msgs.append({
+                'level': 'ERROR',
+                'message': 'The Immich API key does not have the asset.read permission, which Immich v3 needs to list the photos in an album. Add asset.read to the key in Immich, then click Forget Memory.',
+                'link': None
+            })
         if self.hasConfiguration():
             msgs.append({
                 'level': 'INFO',
