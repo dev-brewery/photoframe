@@ -22,15 +22,15 @@ The migration needs Raspberry Pi OS Bullseye or later, the same releases the ins
 
 ```bash
 sudo su -
-wget -O /root/migrate-from-mrworf.sh https://raw.githubusercontent.com/dev-brewery/photoframe/3.0.0/migrate-from-mrworf.sh
-bash /root/migrate-from-mrworf.sh
+wget -O /root/migrate-from-mrworf.sh https://raw.githubusercontent.com/dev-brewery/photoframe/3.0.1/migrate-from-mrworf.sh
+TARGET_BRANCH=3.0.1 bash /root/migrate-from-mrworf.sh
 ```
 
 The script:
 
 1. Stops `frame.service` if it is running
 2. Saves `/root/photoframe_config` as `/root/photoframe_config.backup.<date-time>.tar.gz`
-3. Points the `origin` remote at this fork and checks out the `3.0.0` release branch
+3. Points the `origin` remote at this fork and checks out the `3.0.1` release branch
 4. Installs the system and Python packages the fork needs
 5. Installs the service file and starts the service
 
@@ -52,7 +52,7 @@ cp -r /root/photoframe_config /root/photoframe_config.bak
 cd /root/photoframe
 git remote set-url origin https://github.com/dev-brewery/photoframe.git
 git fetch origin
-git checkout 3.0.0
+git checkout 3.0.1
 git pull
 
 # 4. Install the dependencies (the same list as install.sh; all from apt, no pip)
@@ -115,7 +115,7 @@ See [README-Immich.md](README-Immich.md) for detailed setup and troubleshooting.
 
 ## Automatic updates
 
-The fork uses the same `update.sh` auto-update mechanism. It follows the branch your install is on: after the migration above that is `3.0.0`, so the frame receives whatever is published to that branch. If you had a cron job for updates, it will continue to work after changing the git remote. If not, add one:
+The fork uses the same `update.sh` auto-update mechanism. It follows the branch your install is on: after the migration above that is `3.0.1`, so the frame receives whatever is published to that branch. If you had a cron job for updates, it will continue to work after changing the git remote. If not, add one:
 
 ```bash
 echo "15 3 * * * root /root/photoframe/update.sh" >> /etc/crontab

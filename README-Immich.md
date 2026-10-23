@@ -8,7 +8,7 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 
 ## Supported Immich versions
 
-photoframe supports Immich v2.x and v3.x servers. It reads the server's version (`GET /api/server/version`): on v2 it lists an album's photos from the album response, on v3 it uses `POST /api/search/metadata`.
+photoframe 3.0.1 and later support Immich v2.x and v3.x servers. It reads the server's version (`GET /api/server/version`): on v2 it lists an album's photos from the album response, on v3 it uses `POST /api/search/metadata`.
 
 ## Features
 
