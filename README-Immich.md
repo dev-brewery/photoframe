@@ -8,7 +8,7 @@ This integration enables PhotoFrame to display photos from your personal Immich 
 
 ## Supported Immich versions
 
-photoframe 3.0.0 supports Immich v2.x servers. Immich v3 is not supported in this release; support is planned for photoframe 3.1.
+photoframe supports Immich v2.x and v3.x servers. It reads the server's version (`GET /api/server/version`): on v2 it lists an album's photos from the album response, on v3 it uses `POST /api/search/metadata`.
 
 ## Features
 
@@ -25,7 +25,12 @@ photoframe 3.0.0 supports Immich v2.x servers. Immich v3 is not supported in thi
 2. Go to **Account Settings** → **API Keys**
 3. Click **New API Key**
 4. Give it a name (e.g., "PhotoFrame")
-5. Copy the generated API key
+5. Give the key these permissions, or **All**:
+   - `album.read`: the album list, **Browse** and album lookup
+   - `asset.read`: listing the photos in an album on Immich v3
+   - `asset.view`: photo previews
+   - `asset.download`: full-size originals on displays wider than 1920 pixels
+6. Copy the generated API key
 
 ### Step 2: Configure PhotoFrame
 
@@ -91,7 +96,9 @@ An album name is matched exactly first. If there is no exact match, it is matche
 ### No Photos Displayed
 - Verify the album names you added as keywords exist in Immich
 - Check that the albums contain photos
-- Ensure your API key has permission to access those albums
+- Ensure your API key has the `album.read` and `asset.read` permissions
+- On Immich v3, a key without `asset.read` makes the web page show "The Immich API key does not have the asset.read permission..."
+- After you fix the key, click **Forget Memory** so PhotoFrame checks the albums again at once; otherwise it can take up to an hour
 - Use **Browse** to see the album names the server reports
 
 ### Network Issues
@@ -114,6 +121,7 @@ An album name is matched exactly first. If there is no exact match, it is matche
 
 The Immich integration:
 - Uses Immich's REST API for authentication and photo retrieval
+- Reads the server version when it lists an album: v3 uses the metadata search filtered by album, v2 uses the album endpoint
 - Follows PhotoFrame's standard service pattern (`CONFIG` → `NEED_KEYWORDS` → `READY`)
 - Integrates with PhotoFrame's existing caching and display pipeline
 - Supports multiple Immich servers (add multiple services)
