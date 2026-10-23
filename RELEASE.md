@@ -30,6 +30,16 @@ For each release `vX.Y.Z[-rcN]`:
 5. Tag push fires `build-image.yml`, which checks out pi-gen at the matching tag, builds the LITE image, and attaches it to the auto-created GitHub release.
 6. Verify the release page has the `image_YYYY-MM-DD-photoframe-vX.Y.Z-lite.zip` artifact before announcing (pi-gen prepends the build date to `IMG_NAME`, so the filename includes the date the runner produced it).
 
+## Security-fix releases
+
+The normal path is feature branch → `dev` → `master` → frozen release branch. A security fix that cannot wait for the next release from `dev` is the only exception. 3.0.1 was released this way.
+
+1. Create the new release branch from the previous release branch plus only the fix, not from `dev`. Push it and lock it.
+2. Fast-forward `master` to that branch.
+3. Cut the pi-gen tag, then the photoframe tag, as in steps 3–6 above.
+4. Bring the fix into `dev`: branch from `dev`, run `git merge --no-ff origin/master`, and open a PR to `dev`. Merge that PR with **Create a merge commit**. A squash merge would leave the fix commit out of `dev`, and `master` could not fast-forward to `dev` at the next release.
+5. Frames on the previous release branch do not receive the fix on their own. The release notes must say how to switch them, and `SECURITY.md` must list the new release as supported.
+
 ## Manual dispatch
 
 ```
