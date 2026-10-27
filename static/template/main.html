@@ -27,10 +27,13 @@
 		<select name="tvservice">
 			{{#select settings.tvservice}}
 			{{#each resolution.resolution}}
-				<option value="{{this.mode}} {{this.code}} HDMI">{{this.width}}x{{this.height}}{{this.scan}} ({{this.rate}}Hz)</option>
+				<option value="{{this.value}}">{{this.label}}</option>
 			{{/each}}
 			{{/select}}
 		</select>
+		{{#if resolution.status.restart}}
+		<br><i>The chosen resolution applies after a reboot</i>
+		{{/if}}
 		{{else}}
 			No display connected or detected
 		{{/if}}

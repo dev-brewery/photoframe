@@ -27,6 +27,13 @@ def _defaultConfigTxt():
             return Path(candidate)
     return Path('/boot/config.txt')
 
+def _defaultCmdlineTxt():
+    # Same locations as config.txt; the kernel command line is one line (#97)
+    for candidate in ('/boot/firmware/cmdline.txt', '/boot/cmdline.txt'):
+        if os.path.exists(candidate):
+            return Path(candidate)
+    return Path('/boot/cmdline.txt')
+
 class path:
     # Default paths match upstream mrworf/photoframe — runtime data lives at
     # /root/* (siblings of the repo at /root/photoframe/), keeping the working
@@ -42,6 +49,7 @@ class path:
     DRV_EXTERNAL  = CONFIGFOLDER / 'display-drivers'
 
     CONFIG_TXT    = _defaultConfigTxt()
+    CMDLINE_TXT   = _defaultCmdlineTxt()
 
     @classmethod
     def reassignConfigTxt(cls, newconfig):
@@ -59,6 +67,7 @@ class path:
         cls.CACHEFOLDER    = newbase / 'cache'
         cls.HISTORYFOLDER  = newbase / 'history'
         cls.CONFIG_TXT     = newbase / 'boot/config.txt'
+        cls.CMDLINE_TXT    = newbase / 'boot/cmdline.txt'
 
     @classmethod
     def validate(cls):

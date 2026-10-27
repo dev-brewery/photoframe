@@ -230,11 +230,26 @@ $("select[name=offline-behavior]").change(function () {
   });
 });
 
-$("select[name=tvservice]").change(function() {
+$("select[name=tvservice]").each(function() {
+  $(this).data('previous', $(this).val());
+}).change(function() {
+  var select = $(this);
   $.ajax({
-    url:"/setting/tvservice/" + encodeURIComponent($(this).val()),
+    url:"/setting/tvservice/" + encodeURIComponent(select.val()),
     type:"PUT"
-  }).done(function(){
+  }).done(function(data){
+    select.data('previous', select.val());
+    // Under KMS the new mode is written to cmdline.txt and applies after a reboot
+    if (data.reboot && confirm('The new resolution applies after a reboot. Do you wish to reboot now?')) {
+      $.ajax({
+        url:"/maintenance/reboot"
+      });
+      rebootWatch();
+    }
+  }).fail(function(xhr){
+    var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : 'Unable to change the resolution';
+    alert(msg);
+    select.val(select.data('previous'));
   });
 });
 

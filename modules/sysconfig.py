@@ -48,13 +48,14 @@ class sysconfig:
       logging.warning(f'Could not sync {name} to disk: {e}')
 
   @staticmethod
-  def replaceConfigFile(content):
+  def replaceConfigFile(content, target=None):
     # Replace config.txt so that a power cut never leaves it missing or half-written
     # (#111): keep the first version as config.txt.original, write and sync the new
     # file, swap it in with a single rename, then sync config.txt itself and its
     # directory. On FAT the swapped file's directory entry is only written when the
     # file is synced; until then it points at the old file's freed clusters.
-    target = str(path.CONFIG_TXT)
+    # cmdline.txt is replaced the same way (#97).
+    target = str(path.CONFIG_TXT if target is None else target)
     with sysconfig.CONFIG_LOCK:
       try:
         if not os.path.exists(f'{target}.original'):
@@ -111,6 +112,88 @@ class sysconfig:
       if not found:
         head.append(configline)
       return sysconfig.replaceConfigFile('\n'.join(head + tail) + '\n')
+
+  # video=<connector>:<mode>[,<option>...] in cmdline.txt (#97)
+  @staticmethod
+  def _videoOption(connector):
+    return re.compile(r'(?<!\S)video=' + re.escape(connector) + r':(\S*)')
+
+  @staticmethod
+  def _splitVideoValue(value):
+    # (mode, options) of what follows video=<connector>:. Options may also stand
+    # alone, without a mode (video=HDMI-A-1:rotate=180).
+    parts = value.split(',', 1)
+    if '=' in parts[0]:
+      return ('', value)
+    return (parts[0], parts[1] if len(parts) > 1 else '')
+
+  @staticmethod
+  def getVideoModes(cmdline=None):
+    # The mode part of each video=<connector>: option, by connector
+    if cmdline is None:
+      cmdline = sysconfig.readCmdline()
+    result = {}
+    if cmdline:
+      for m in re.finditer(r'(?<!\S)video=([A-Za-z0-9-]+):(\S*)', cmdline):
+        result.setdefault(m.group(1), sysconfig._splitVideoValue(m.group(2))[0])
+    return result
+
+  @staticmethod
+  def replaceVideoMode(cmdline, connector, mode):
+    # Return cmdline with the mode part of video=<connector>: set to mode. Its options
+    # (rotate=, margins, ...) are kept. An empty mode with no options removes the option.
+    pattern = sysconfig._videoOption(connector)
+    m = pattern.search(cmdline)
+    if m is None:
+      if mode == '':
+        return cmdline
+      body = cmdline.rstrip('\r\n')
+      ending = cmdline[len(body):] or '\n'
+      separator = ' ' if body and not body[-1].isspace() else ''
+      return f'{body}{separator}video={connector}:{mode}{ending}'
+    options = sysconfig._splitVideoValue(m.group(1))[1]
+    if mode == '' and options == '':
+      start, end = m.span()
+      # Take the space before the option with it, or after it at the start of the line
+      if start > 0 and cmdline[start - 1] in ' \t':
+        while start > 0 and cmdline[start - 1] in ' \t':
+          start -= 1
+      else:
+        while end < len(cmdline) and cmdline[end] in ' \t':
+          end += 1
+      return cmdline[:start] + cmdline[end:]
+    if options == '':
+      value = mode
+    elif mode == '':
+      value = options
+    else:
+      value = f'{mode},{options}'
+    return cmdline[:m.start(1)] + value + cmdline[m.end(1):]
+
+  @staticmethod
+  def readCmdline():
+    try:
+      with open(path.CMDLINE_TXT, 'r') as f:
+        return f.read()
+    except OSError:
+      return None
+
+  @staticmethod
+  def setVideoMode(connector, mode):
+    # Set the mode part of video=<connector>: in cmdline.txt; '' removes it.
+    # Returns True if the file changed, False if it already had this mode, None on failure.
+    with sysconfig.CONFIG_LOCK:
+      cmdline = sysconfig.readCmdline()
+      if cmdline is None:
+        logging.error(f'Cannot read {path.CMDLINE_TXT}')
+        return None
+      updated = sysconfig.replaceVideoMode(cmdline, connector, mode)
+      if updated == cmdline:
+        return False
+      if not sysconfig.replaceConfigFile(updated, path.CMDLINE_TXT):
+        return None
+      logging.info(f'Display mode for {connector} set to "{mode}" in {path.CMDLINE_TXT}, applies after a reboot')
+      return True
 
   @staticmethod
   def usesVC4DisplayDriver():

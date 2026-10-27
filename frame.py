@@ -173,6 +173,11 @@ class Photoframe:
       self.settingsMgr.setUser('timezone', helper.timezoneCurrent())
       self.settingsMgr.save()
 
+    if not self.displayMgr.has_tvservice and not self.emulator:
+      # Under KMS the setting is the mode cmdline.txt sets, which may have been edited by hand (#97)
+      connector = str(self.settingsMgr.getUser('tvservice')).split(':', 1)[0]
+      self.settingsMgr.setUser('tvservice', self.displayMgr.configuredMode(connector))
+
     width, height, tvservice = self.displayMgr.setConfiguration(self.settingsMgr.getUser('tvservice'), self.settingsMgr.getUser('display-special'))
     self.settingsMgr.setUser('tvservice', tvservice)
     self.settingsMgr.setUser('width',  width)

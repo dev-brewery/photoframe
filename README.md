@@ -76,7 +76,7 @@ COUNTRY=US
 
 Set `COUNTRY` to your ISO 3166-1 alpha-2 code (`GB`, `DE`, `CA`, `JP`, ...) if you're outside the US. Save the file. On first boot, the Pi reads this file, connects to your WiFi, and renames the file to `wifi-config.txt.applied` so you know it worked. If something goes wrong, a `wifi-config.txt.error` file appears with the reason.
 
-**Step 3 (optional) — force a custom display resolution.** Most HDMI monitors are auto-detected via EDID and need no configuration. If you're driving an atypical panel — e.g., an HDMI-to-LVDS adapter board feeding an old laptop LCD — edit **`cmdline.txt`** on the same `bootfs` partition and append the video mode to the single existing line (with a leading space, no newlines):
+**Step 3 (optional) — force a custom display resolution.** Most HDMI monitors are auto-detected via EDID and need no configuration, and once the frame is running you can pick any mode your monitor reports under **Resolution** on the settings page (see [the FAQ](#my-display-shows-nothing-or-the-wrong-resolution)). If you're driving an atypical panel — e.g., an HDMI-to-LVDS adapter board feeding an old laptop LCD — edit **`cmdline.txt`** on the same `bootfs` partition and append the video mode to the single existing line (with a leading space, no newlines):
 
 ```
  video=HDMI-A-1:1366x768MR@60D
@@ -236,7 +236,9 @@ Avoid modifying files in `/root/photoframe/` directly, as this will prevent auto
 
 Most HDMI monitors are auto-detected via EDID. If you're driving an atypical panel (e.g. an HDMI-to-LVDS adapter board feeding a laptop LCD) that doesn't report EDID, you'll need to force the mode manually. The right place to do this depends on which display driver is active. Stock Raspberry Pi OS Bullseye, Bookworm and Trixie all use the KMS driver (`dtoverlay=vc4-kms-v3d` in `config.txt`).
 
-**With the KMS driver (the default):** custom modes go on the kernel command line, not in `config.txt`. Legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` / `hdmi_force_hotplug` settings in `config.txt` are silently ignored under the `vc4-kms-v3d` driver. The file is `/boot/firmware/cmdline.txt` on Bookworm and Trixie, `/boot/cmdline.txt` on Bullseye.
+**With the KMS driver (the default):** if the display shows a picture, pick the mode on the settings page under **Resolution**. The list holds the modes the display reports in its EDID, plus **Automatic**, which uses the display's preferred mode. photoframe writes the choice to `cmdline.txt` as `video=<connector>:<mode>` (keeping any other `video=` options such as `rotate=`) and offers to reboot; the new mode applies after the reboot. If a mode leaves the screen blank, choose **Automatic** from the settings page on another device, or remove the `video=` option from `cmdline.txt` by hand as described below.
+
+For a panel that does not report EDID, or a mode the display does not list, set the mode by hand: custom modes go on the kernel command line, not in `config.txt`. Legacy `hdmi_group` / `hdmi_mode` / `hdmi_cvt` / `hdmi_force_hotplug` settings in `config.txt` are silently ignored under the `vc4-kms-v3d` driver. The file is `/boot/firmware/cmdline.txt` on Bookworm and Trixie, `/boot/cmdline.txt` on Bullseye.
 
 ```bash
 sudo nano /boot/firmware/cmdline.txt   # Bookworm and Trixie
@@ -249,7 +251,7 @@ sudo nano /boot/cmdline.txt            # Bullseye
 video=HDMI-A-1:1366x768MR@60D
 ```
 
-Replace `1366x768` with your panel's native resolution. Flag meanings: `M` = CVT timings, `R` = reduced blanking, `@60` = refresh rate, `D` = force DVI-style output and treat the port as connected even without HPD (required because most adapter boards don't assert HPD). Reboot to apply.
+Replace `1366x768` with your panel's native resolution. Flag meanings: `M` = CVT timings, `R` = reduced blanking, `@60` = refresh rate, `D` = force DVI-style output and treat the port as connected even without HPD (required because most adapter boards don't assert HPD). Reboot to apply. The settings page then shows this mode as selected (marked "set in cmdline.txt" if the display does not report it). Choosing another mode there keeps the `D` flag; choosing the same mode leaves the line as you wrote it.
 
 **On the legacy firmware display stack** (only if the `vc4-kms-v3d` line has been removed from `config.txt`): the traditional `config.txt` knobs still work.
 

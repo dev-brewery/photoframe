@@ -54,6 +54,17 @@ class RouteSettings(BaseRoute):
         if value != 'auto' and not (value.isascii() and value.isdigit()):
           self.setAbort(400)
           return
+      if key == 'tvservice' and not self.display.has_tvservice:
+        # Under KMS the mode is written to cmdline.txt and applies after a reboot (#97).
+        # A mode the page does not offer is refused, and nothing is changed.
+        if not self.display.isModeAvailable(value):
+          return self.jsonify({'status': False, 'error': f'"{value}" is not a mode a connected display reports'}), 400
+        changed = self.display.applyMode(value)
+        if changed is None:
+          return self.jsonify({'status': False, 'error': 'Could not update cmdline.txt'}), 500
+        self.settingsMgr.setUser('tvservice', self.display.configuredMode(value.split(':', 1)[0]))
+        self.settingsMgr.save()
+        return self.jsonify({'status': True, 'reboot': changed})
       self.settingsMgr.setUser(key, value)
       if key in ['display-driver']:
         drv = self.settingsMgr.getUser('display-driver')

@@ -27,6 +27,7 @@ from pathlib import Path
 import modules.debug as debug
 from modules.sysconfig import sysconfig
 from modules.helper import helper
+import modules.kms as kms
 
 # Determine rgb565 path relative to this module (works from /root/photoframe or /home/pi/photoframe)
 # Supports both 32-bit (armhf) and 64-bit (arm64) builds
@@ -426,7 +427,94 @@ class display:
         result['tvservice'] = self.params
         result['special'] = self.special
         result['rotated'] = self.rotated
+        if not self.has_tvservice and not self.special:
+            # The mode cmdline.txt sets, which applies after a reboot (#97)
+            configured = display.configuredMode(kms.splitValue(self.params)[0])
+            target = display._kmsSize(configured)
+            result['configured'] = configured
+            result['restart'] = target is not None and target != (self.pwidth, self.pheight)
         return result
+
+    @staticmethod
+    def kmsModes():
+        """The modes the settings page offers under KMS (#97): Automatic and the
+        modes each connected display reports, plus the mode cmdline.txt sets if
+        the display does not report it"""
+        connected = kms.connectors()
+        configured = sysconfig.getVideoModes()
+        multiple = len(connected) > 1
+        result = []
+        for connector in connected:
+            name = connector['name']
+            entries = [kms.entry(name, None, multiple=multiple)]
+            entries += [kms.entry(name, mode, multiple=multiple) for mode in kms.sortModes(kms.connectorModes(connector))]
+            pending = kms.cmdlineModeToSetting(configured.get(name, ''))
+            if f'{name}:{pending}' not in [e['value'] for e in entries]:
+                mode = kms.parseSettingMode(pending)
+                label = f'{pending} (set in cmdline.txt)'
+                if mode is None:
+                    pendingEntry = kms.entry(name, None, label=label, multiple=multiple)
+                    pendingEntry['code'] = pending
+                    pendingEntry['value'] = f'{name}:{pending}'
+                else:
+                    pendingEntry = kms.entry(name, mode, label=label, multiple=multiple)
+                entries.insert(1, pendingEntry)
+            result += entries
+        return result
+
+    @staticmethod
+    def configuredMode(connector=None):
+        """The setting value for the mode cmdline.txt sets for a connector
+        (by default the first connected one): <connector>:<mode> or <connector>:auto"""
+        configured = sysconfig.getVideoModes()
+        names = [c['name'] for c in kms.connectors()]
+        if connector is not None and (connector in names or connector in configured):
+            name = connector
+        elif names:
+            name = names[0]
+        elif configured:
+            name = next(iter(configured))
+        else:
+            return kms.AUTO
+        return f'{name}:{kms.cmdlineModeToSetting(configured.get(name, ""))}'
+
+    @staticmethod
+    def isModeAvailable(value):
+        """True if the settings page offers this mode under KMS"""
+        values = [e['value'] for e in display.kmsModes()]
+        return str(value).strip() in values or kms.normalizeValue(value) in values
+
+    @staticmethod
+    def applyMode(value):
+        """Write a mode the settings page offers into cmdline.txt (#97).
+        Returns True if it changed (a reboot applies it), False if cmdline.txt
+        already sets this mode, None if it could not be written"""
+        connector, mode = kms.splitValue(kms.normalizeValue(value) or str(value).strip())
+        if connector is None:
+            return None
+        existing = sysconfig.getVideoModes().get(connector, '')
+        if mode == kms.cmdlineModeToSetting(existing):
+            return False
+        parsed = None if mode == kms.AUTO else kms.parseSettingMode(mode)
+        if parsed is None and mode != kms.AUTO:
+            return None
+        return sysconfig.setVideoMode(connector, kms.settingToCmdlineMode(parsed, existing))
+
+    @staticmethod
+    def _kmsSize(value):
+        # The (width, height) a setting value gives, or None if not known
+        connector, mode = kms.splitValue(value)
+        if mode == kms.AUTO:
+            for c in kms.connectors():
+                if c['name'] == connector:
+                    for m in kms.connectorModes(c):
+                        if m['preferred']:
+                            return (m['width'], m['height'])
+            return None
+        parsed = kms.parseSettingMode(mode)
+        if parsed is None:
+            return None
+        return (parsed['width'], parsed['height'])
 
     @staticmethod
     def available():
@@ -459,11 +547,8 @@ class display:
             except:
                 pass
         else:
-            # Use modern fallback method
-            logging.info('tvservice unavailable, using modern display detection')
-            # Create a temporary display instance to access modern methods
-            temp_display = display()
-            result = temp_display._modern_available()
+            # Under KMS, the modes the connected displays report (#97)
+            result = display.kmsModes()
             
         return result
 
@@ -586,90 +671,6 @@ class display:
         
         return None
 
-    def _detect_display_with_fallbacks(self):
-        """Multi-layer fallback detection strategy"""
-        detection_methods = [
-            ('framebuffer', self._framebuffer_detection),
-            ('safe_defaults', self._safe_defaults_detection)
-        ]
-        
-        for method_name, method in detection_methods:
-            try:
-                logging.debug(f'Trying display detection method: {method_name}')
-                result = method()
-                if self._validate_detection_result(result):
-                    logging.info(f'Display detection successful using: {method_name}')
-                    return result
-            except Exception as e:
-                logging.warning(f'Detection method {method_name} failed: {e}')
-                continue
-        
-        logging.error('All display detection methods failed')
-        raise Exception('All display detection methods failed')
-
-    def _framebuffer_detection(self):
-        """Primary modern detection method using framebuffer"""
-        fb_info = self._get_framebuffer_info()
-        modes = []
-        
-        if fb_info:
-            # Current detected mode
-            mode_str = f"1: {fb_info['width']}x{fb_info['height']}@60Hz 16:9"
-            modes.append(mode_str)
-            logging.info(f'Added detected framebuffer mode: {mode_str}')
-        
-        # Always add common fallback modes 
-        common_modes = [
-            "82: 1920x1080@60Hz 16:9",
-            "85: 1280x720@60Hz 16:9", 
-            "87: 800x480@60Hz 5:3",
-            "16: 1024x768@60Hz 4:3",
-            "9: 800x600@60Hz 4:3"
-        ]
-        
-        # Filter out duplicates if we detected the current resolution
-        current_res = f"{fb_info['width']}x{fb_info['height']}" if fb_info else ""
-        for mode in common_modes:
-            mode_res = mode.split('@')[0].split(': ')[1]
-            if mode_res != current_res:
-                modes.append(mode)
-        
-        if not modes:
-            logging.warning('No display modes detected, using emergency defaults')
-            return None
-            
-        return modes
-
-    def _safe_defaults_detection(self):
-        """Ultimate fallback with safe default modes"""
-        logging.warning('Using safe default display modes')
-        return [
-            "85: 1280x720@60Hz 16:9",
-            "87: 800x480@60Hz 5:3",
-            "16: 1024x768@60Hz 4:3"
-        ]
-
-    def _validate_detection_result(self, result):
-        """Validate that detection result is usable"""
-        if not result or not isinstance(result, list):
-            return False
-        if len(result) == 0:
-            return False
-        # Check that modes follow expected format
-        for mode in result:
-            if not isinstance(mode, str) or ':' not in mode:
-                return False
-        return True
-
-    def _modern_available(self):
-        """Modern fallback for display mode detection when tvservice unavailable"""
-        try:
-            return self._detect_display_with_fallbacks()
-        except Exception as e:
-            logging.error(f'All modern detection methods failed: {e}')
-            # Final emergency fallback
-            return ["85: 1280x720@60Hz 16:9"]
-
     def _validate_display_health(self):
         """Comprehensive display system health validation"""
         health_status = {
@@ -726,17 +727,23 @@ class display:
                 'tvservice': special
             }
         
-        # Get current framebuffer info with health validation
+        # The setting is <connector>:<mode> or <connector>:auto, the mode cmdline.txt
+        # sets (#97). Anything else (an old tvservice value) is replaced by that.
+        value = kms.normalizeValue(requested_mode)
+        if value is None or kms.splitValue(value)[0] is None:
+            value = display.configuredMode()
+            logging.info(f'Display mode "{requested_mode}" is not a KMS mode, using "{value}" from cmdline.txt')
+
+        # A new mode only applies after a reboot, so draw at the size in use
         fb_info = self._get_framebuffer_info()
         if fb_info and health['framebuffer_accessible']:
-            tvservice_str = f"{fb_info['width']}x{fb_info['height']}-{fb_info['depth']}@60"
-            logging.info(f'Modern validation using detected framebuffer: {tvservice_str}')
+            logging.info(f'Modern validation using detected framebuffer: {fb_info["width"]}x{fb_info["height"]}-{fb_info["depth"]}, mode "{value}"')
             return {
                 'width': fb_info['width'],
                 'height': fb_info['height'],
                 'depth': fb_info['depth'],
                 'reverse': False,  # Assume RGB for modern HDMI displays
-                'tvservice': tvservice_str
+                'tvservice': value
             }
         
         # Graceful degradation with safe defaults - NEVER return None
@@ -746,7 +753,7 @@ class display:
             'height': 480,  # Good default for small displays
             'depth': 16,    # Conservative depth
             'reverse': False,
-            'tvservice': '800x480-16@60'
+            'tvservice': value
         }
 
     def _modern_enable(self, enable):

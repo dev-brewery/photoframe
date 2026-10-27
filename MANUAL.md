@@ -90,7 +90,10 @@ only file that matters for forcing a video mode is `cmdline.txt`.
 
 **If you have a normal HDMI monitor**, skip the cmdline.txt edit
 entirely. EDID auto-detection works correctly for the overwhelming
-majority of displays.
+majority of displays. Once photoframe is running you can pick any mode
+the monitor reports under **Resolution** on the settings page; it is
+written to `cmdline.txt` for you and applies after a reboot. Choose
+**Automatic** there to go back to the monitor's preferred mode.
 
 We also want to disable the first console (since that's going to be
 our frame) and mask the boot splash:
